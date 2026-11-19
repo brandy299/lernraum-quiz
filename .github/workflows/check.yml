@@ -1,0 +1,34 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax der Skripte
+        run: |
+          node --check quiz.js
+          node --check race.js
+          node --check config.js
+      - name: Dateien aus index.html vorhanden
+        run: |
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("index.html", "utf8");
+            const refs = [...html.matchAll(/(?:src|href)="([^"#:]+?)(?:\?[^"]*)?"/g)].map(m => m[1]);
+            const missing = refs.filter(r => !fs.existsSync(r));
+            if (missing.length) { console.error("Fehlt:", missing.join(", ")); process.exit(1); }
+            console.log("OK:", refs.length, "Verweise");'
+      - name: Keine Geheimnisse im Repo
+        run: |
+          if grep -rIn --exclude-dir=.git --exclude=check.yml -E "sb_secret_|insert into quiz_config *\(id, *teacher_pin\) *values *\(1, *'[^D]" . ; then
+            echo "Geheimnis oder PIN gefunden. Nie committen."; exit 1; fi
+          echo "keine Geheimnisse gefunden"
