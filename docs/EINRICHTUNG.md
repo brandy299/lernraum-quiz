@@ -21,10 +21,11 @@ Einmalige Schritte, damit das Live-Quiz ein eigenes Repo mit eigener Adresse bek
 
 ## 5. `main` schützen
 Repo → Settings → Rules → Rulesets → *New branch ruleset* (Ziel: `main`):
-- *Require a pull request before merging* **und** *Require review from Code Owners* (`.github/CODEOWNERS` trägt dich ein, also muss jede Änderung durch dich).
-- *Require status checks to pass*: den Check `check` auswählen (erscheint nach dem ersten Lauf).
-- *Block force pushes*.
-- Deine eigene Rolle (Admin) darfst du vom Schutz ausnehmen („Bypass list“), damit du selbst arbeiten kannst.
+Beschluss 19.11.2026: Der Kollege darf selbst mergen. Rollback per Revert-Pull-Request. Das Ruleset enthält nur:
+- *Block force pushes* und *Restrict deletions* (der Verlauf bleibt erhalten, Rollback bleibt möglich).
+- Optional später: *Require status checks to pass* mit dem Check `check`.
+- Kein Pflicht-Review. `.github/CODEOWNERS` benachrichtigt dich bei jedem Pull Request.
+- SQL-Änderungen: der Kollege wartet mit dem Merge, bis du das SQL eingespielt hast (steht in CLAUDE.md und seiner Anleitung).
 
 ## 6. Supabase
 Bleibt unverändert, dasselbe Projekt, dieselbe `config.js`. Dein Kollege braucht **keinen** Supabase-Zugang. Datenbankänderungen spielst du selbst ein (siehe CLAUDE.md).

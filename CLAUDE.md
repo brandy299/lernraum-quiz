@@ -23,7 +23,7 @@ Funktionen, siehe `supabase/quiz.sql`). **Nur dieses Repo gehört zu deinem Auft
 - Sprache Deutsch. Zielgruppe Schüler/innen, fast nur Handy: Tippflächen ≥ 44 px, kein seitliches Scrollen ab 320 px, am Beamer lesbar.
 - Alles automatisch prüfbar, keine Selbstkorrektur. Datenschutz: nur Spitznamen, keine echten Namen, Räume nach 24 h gelöscht. Keine neuen personenbezogenen Daten ohne Rücksprache mit Yannik.
 - **Nie** in das Repo schreiben: Lehrer-PIN, Supabase-`service_role`-Key, Passwörter, Zugangsdaten. In `config.js` darf nur der öffentliche (anon/publishable) Key stehen.
-- Arbeiten über Branch + Pull Request nach `main`, nie direkt auf `main`. Yannik prüft und mergt. Der Check „check“ muss grün sein.
+- Arbeiten über Branch + Pull Request nach `main`, nie direkt auf `main`. Der Kollege darf selbst mergen, wenn der Check „check“ grün ist, und meldet Yannik kurz, was live gegangen ist. Ausnahme: Braucht der PR SQL, wird **erst gemergt, nachdem Yannik das SQL eingespielt hat**. Fehler werden per Revert-Pull-Request zurückgenommen, nie per Force-Push.
 - Änderungen an `quiz.js`, `race.js`, `quiz.css` oder `config.js`: Versionsnummer `?v=…` in `index.html` erhöhen und bei CSS-Änderungen `--quiz-css` in `quiz.css` sowie `CSS_NEED` am Anfang von `quiz.js` gemeinsam erhöhen (Cache-Selbstheilung).
-- Änderungen an der Datenbank: nur in `supabase/quiz.sql` (idempotent), im PR deutlich vermerken „SQL muss in Supabase ausgeführt werden“. **Du spielst SQL nicht selbst ein**, das macht Yannik.
+- Änderungen an der Datenbank: nur in `supabase/quiz.sql` (idempotent), im PR deutlich vermerken „SQL muss in Supabase ausgeführt werden“. **Du spielst SQL nicht selbst ein**, das macht Yannik, und der PR wird erst danach gemergt.
 - Funktion wirkt neu? Zuerst im Demo-Modus testen (siehe README), dann mit Playwright einen Durchlauf mit mehreren Personen.

@@ -5,7 +5,7 @@ Lehrkräfte legen einen Raum an, Schüler/innen treten am Handy mit Code oder QR
 **Pferderennen** (auch am Beamer), mit Warteraum, Start-Knopf, Aufholbonus und Zuschauer-Ansicht.
 
 Du hast Zugriff **nur auf dieses eine Repo** (`lernraum-quiz`), nicht auf Yanniks andere Projekte und nicht auf die Datenbank.
-Alles läuft über Pull Requests, **Yannik prüft und veröffentlicht**. Du kannst also nichts kaputt machen, was nicht noch geprüft wird.
+Alles läuft über Pull Requests. Du darfst selbst mergen, wenn der Check „check“ grün ist, und sagst Yannik kurz Bescheid. Geht etwas schief, nimmt ein Revert-Pull-Request die Änderung zurück.
 
 ---
 
@@ -15,7 +15,7 @@ Alles läuft über Pull Requests, **Yannik prüft und veröffentlicht**. Du kann
 2. **Einladung annehmen:** Yannik hat dich per E-Mail eingeladen. In der Mail auf **„View invitation“ → „Accept invitation“** klicken. Danach siehst du https://github.com/brandy299/lernraum-quiz.
 3. **Claude mit GitHub verbinden** (mit deinem eigenen Claude-Abo):
    - https://claude.ai/code öffnen und anmelden.
-   - GitHub verbinden, wenn Claude danach fragt, und die **Claude GitHub App** installieren. Dabei **nur das Repo `lernraum-quiz`** auswählen.
+   - GitHub verbinden, wenn Claude danach fragt, und die **Claude GitHub App** erlauben. Die Freigabe für das Repo `lernraum-quiz` liegt bei Yannik (er hat die App auf seinem Konto dafür freigegeben). Taucht das Repo bei dir nicht auf, sage ihm Bescheid.
    - Repo `brandy299/lernraum-quiz` wählen und eine neue Sitzung starten.
    - Alternativ geht auch **Claude Code** auf deinem Rechner (https://code.claude.com/docs): Repo klonen, im Ordner `claude` starten.
 4. Claude liest beim Start automatisch die Datei `CLAUDE.md` im Repo. Dort stehen alle Regeln, du musst sie nicht auswendig kennen.
@@ -50,15 +50,16 @@ Meine Aufgabe: <hier beschreiben, was du ändern oder bauen willst>
    - „Nach dem Quiz eine Auswertung als Tabelle zum Download.“
 2. Claude arbeitet auf einem **eigenen Branch**, testet im Demo-Modus und öffnet einen **Pull Request**. Du bekommst den Link und eine Zusammenfassung.
 3. Schau dir das Ergebnis an. Sagt dir etwas nicht zu, schreibe es Claude einfach, es arbeitet im selben Pull Request weiter.
-4. Wenn es passt, sage **Yannik** Bescheid. Er prüft und mergt. Nach wenigen Minuten ist es auf quiz.yannikbrand.eu live.
+4. Wenn es passt und der Check „check“ grün ist, **mergst du den Pull Request selbst** und sagst Yannik kurz Bescheid. Nach wenigen Minuten ist es auf quiz.yannikbrand.eu live. **Ausnahme:** Braucht der Pull Request SQL, wartest du, bis Yannik es in Supabase eingespielt hat, und mergst erst dann.
+5. Ist etwas kaputt gegangen: auf GitHub im gemergten Pull Request „Revert“ wählen und diesen Revert-PR mergen (oder Claude bitten). Nie Force-Push.
 
 Ein Pull Request sollte **eine** klare Sache enthalten. Mehrere Ideen besser in mehreren Pull Requests.
 
 ## 4. Regeln, die immer gelten
 
-- **Nie direkt auf `main`.** Immer Branch + Pull Request (GitHub erlaubt es dir ohnehin nicht).
+- **Nie direkt auf `main`.** Immer Branch + Pull Request (auch wenn GitHub es technisch zuließe).
 - **Keine Geheimnisse ins Repo:** keine Lehrer-PIN, keine Passwörter, keinen Supabase-`service_role`-Schlüssel. Nur der öffentliche Schlüssel in `config.js` ist erlaubt.
-- **Datenbank:** Du hast keinen Zugang und brauchst keinen. Änderungen stehen in `supabase/quiz.sql`; Yannik spielt sie ein, **bevor** er merged. Im Pull Request muss dazu stehen, dass es nötig ist.
+- **Datenbank:** Du hast keinen Zugang und brauchst keinen. Änderungen stehen in `supabase/quiz.sql`; Yannik spielt sie ein, **bevor** gemergt wird. Im Pull Request muss dazu stehen, dass es nötig ist.
 - **Datenschutz:** nur Spitznamen, keine echten Namen, Räume werden nach 24 Stunden gelöscht. Neue Daten nur nach Rücksprache.
 - **Handy zuerst:** Prüfe in schmaler Ansicht (~390 px) und am Beamer.
 - **Nur dieses Repo:** Das Lernraum-Repo von Yannik gehört nicht dazu. Das Design in `assets/` ist eine Kopie und nur nach Absprache zu ändern.
