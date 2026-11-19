@@ -162,5 +162,5 @@
       : `<div class="step s${k + 1} none"><div class="blk"><b>${k + 1}</b></div></div>`; }).join("");
   }
 
-  window.QuizRace = { html, update, sig };
+  window.QuizRace = { html, update, sig, pix: { FRAME_A, FRAME_B, HORSE, JOCKEY } };
 })();

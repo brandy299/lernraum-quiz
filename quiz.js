@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "9";
+  const CSS_NEED = "10";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -290,12 +290,15 @@
         <div class="body"><p class="kick">${esc(state.title)}</p><p class="say">Du bist dabei, ${esc(me.nick)}.</p>
         <p class="sub" style="margin-top:8px">Gleich geht es los. Die Lehrkraft startet das Quiz.</p>
         <div class="waitdots" aria-hidden="true"><i></i><i></i><i></i></div>
-        <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>`);
+        <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>
+        <h3 class="section-head">Spiel zum Warten</h3>${window.QuizGame ? QuizGame.html() : ""}`);
+      const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0)) : () => {};
       every(2000, async () => {
         const s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token });
         if (s2.status === "lobby") { const c = root.querySelector("#cnt"), l = root.querySelector("#cntl"); if (c) c.textContent = s2.count; if (l) l.textContent = s2.count === 1 ? "Person" : "Personen"; return; }
         clearTimer(); apply(s2); countdown();
       });
+      const stopPoll = stopTimer; stopTimer = () => { stopPoll(); stopGame(); };
     }
     function countdown() {
       if (state.status !== "open") { render(); return; }
