@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "9";
+  const CSS_NEED = "10";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -137,6 +137,13 @@
       case "quiz_set_bonus": room(a.p_code, a.p_secret).bonus = !!a.p_bonus; save(); return null;
       case "quiz_set_status": room(a.p_code, a.p_secret).status = a.p_status; save(); return null;
       case "quiz_remove_player": room(a.p_code, a.p_secret); db.players = db.players.filter((p) => p.id !== a.p_pid); save(); return null;
+      case "quiz_rename_player": {
+        room(a.p_code, a.p_secret);
+        const nick = String(a.p_nick || "").trim().slice(0, 20);
+        if (nick.length < 2) throw new Error("BAD_NICK");
+        if (db.players.some((p) => p.code === a.p_code && p.id !== a.p_pid && p.nick.toLowerCase() === nick.toLowerCase())) throw new Error("NICK_TAKEN");
+        const pl = db.players.find((p) => p.id === a.p_pid && p.code === a.p_code); if (pl) pl.nick = nick; save(); return null;
+      }
       case "quiz_delete_room": delete db.rooms[a.p_code]; db.players = db.players.filter((p) => p.code !== a.p_code); save(); return null;
     }
     throw new Error("OFFLINE");
@@ -239,6 +246,11 @@
       const x = state.answers[i]; return `<i class="${x ? (x.ok ? "ok" : "no") : (i === active ? "cur" : "")}"></i>`; }).join("")}</div>`;
     const head = `<header class="top"><span class="tag-box"><i class="sq"></i>${esc(me.nick)}</span><span class="q-count">Raum ${esc(code)}</span></header>`;
 
+    const isGone = (e) => ["NO_PLAYER", "NO_ROOM"].includes(String(e && e.message));
+    const gone = () => {
+      clearTimer(); store.del(`quiz.player.${code}`);
+      show(`<header class="top"><span class="tag-box"><i class="sq"></i>Live-Quiz</span></header><p class="msg">Du bist nicht mehr im Raum. Die Lehrkraft hat dich entfernt oder den Raum gelöscht.</p><p style="margin-top:16px"><a class="btn block" href="#/">Neu beitreten</a></p>`);
+    };
     function render() {
       clearTimer();
       if (state.status === "closed") return renderEnd();
@@ -281,6 +293,7 @@
         state.answers[idx] = { q: idx, ok: r.ok, given, a: r.a, e: r.e, bonus: !!r.bonus };
         cur = idx;
       } catch (e) {
+        if (isGone(e)) { busy = false; gone(); return; }
         if (String(e.message) === "CLOSED") state.status = "closed"; else note = errText(e);
       }
       busy = false; render();
@@ -292,7 +305,8 @@
         <div class="waitdots" aria-hidden="true"><i></i><i></i><i></i></div>
         <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>`);
       every(2000, async () => {
-        const s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token });
+        let s2;
+        try { s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
         if (s2.status === "lobby") { const c = root.querySelector("#cnt"), l = root.querySelector("#cntl"); if (c) c.textContent = s2.count; if (l) l.textContent = s2.count === 1 ? "Person" : "Personen"; return; }
         clearTimer(); apply(s2); countdown();
       });
@@ -328,7 +342,8 @@
         QuizRace.update(root.querySelector("#race"), ps, w.n, o);
       };
       const poll = async () => {
-        const w = await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token });
+        let w;
+        try { w = await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) { gone(); return; } throw e; }
         if (w.status === "closed") { apply(await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token })); render(); return; }
         paintWatch(w);
       };
@@ -667,7 +682,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
           <div class="qr" aria-label="QR-Code zum Beitreten">${qrSvg()}</div></div></div>
         ${lobby ? `
         <h3 class="section-head">Warteraum · ${ps.length} dabei</h3>
-        ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
+        ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
         <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button><button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
@@ -684,7 +699,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         </div>
         <h3 class="section-head">${view === "race" ? "Rennen" : "Fortschritt"}</h3>
         ${ps.length && view === "race" ? `<div id="raceSlot"></div>` : ps.length ? `<div class="tiles">${list.map((p) => `
-          <div class="tile ${p.done === n ? "done" : ""}"><div class="nm"><span>${esc(hide ? `SuS ${p.i + 1}` : p.nick)}</span>${beamer ? "" : `<button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</div>
+          <div class="tile ${p.done === n ? "done" : ""}"><div class="nm"><span>${esc(hide ? `SuS ${p.i + 1}` : p.nick)}</span>${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</div>
           <div class="bd"><div class="seg">${p.r.map((x) => `<i class="${x === true ? "ok" : x === false ? "no" : ""}"></i>`).join("")}</div>
           <div class="sc"><span>${p.ok} richtig</span><span>${p.done}/${n}</span></div></div></div>`).join("")}</div>`
           : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
@@ -709,6 +724,12 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       if ($("#bEnd")) $("#bEnd").onclick = async () => { if (confirm("Quiz für alle beenden? Danach kann niemand mehr antworten.")) { await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "closed" }); pull(); } };
       if ($("#bOpen")) $("#bOpen").onclick = async () => { await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "open" }); pull(); };
       if ($("#bDel")) $("#bDel").onclick = async () => { if (confirm("Raum und alle Antworten löschen?")) { await rpc("quiz_delete_room", { p_code: code, p_secret: secret }); store.del(`quiz.teacher.${code}`); location.hash = "#/lehrer"; } };
+      root.querySelectorAll("[data-rn]").forEach((b) => { b.onclick = async () => {
+        const nn = prompt("Neuer Spitzname für diese Person (2 bis 20 Zeichen):", "");
+        if (nn == null || !nn.trim()) return;
+        try { await rpc("quiz_rename_player", { p_code: code, p_secret: secret, p_pid: b.dataset.rn, p_nick: nn }); } catch (e) { alert(errText(e)); }
+        pull();
+      }; });
       root.querySelectorAll("[data-rm]").forEach((b) => { b.onclick = async () => { if (confirm("Diese Person aus dem Raum entfernen?")) { await rpc("quiz_remove_player", { p_code: code, p_secret: secret, p_pid: b.dataset.rm }); pull(); } }; });
     }
     try { await pull(); }

@@ -106,6 +106,8 @@
     ps.forEach((p) => {
       const lane = box.querySelector(`.lane[data-id="${CSS.escape(p.id)}"]`); if (!lane) return;
       const runner = lane.querySelector(".runner"), dirt = lane.querySelector(".dirt");
+      const pn = lane.querySelector(".plate span"), pname = o.hide ? `SuS ${p.i + 1}` : p.nick;
+      if (pn && pn.textContent !== pname) pn.textContent = pname;
       const old = S.ok[p.id] ?? 0;
       const steps = stp(p);
       runner.style.setProperty("--p", n ? Math.min(1, steps / n) : 0);

@@ -55,3 +55,6 @@ Fehlermeldungen des Servers: `NO_PIN` (PIN nicht gesetzt), `BAD_PIN`, `NO_ROOM` 
 
 ## Hinweis für Updates
 GitHub Pages liefert Dateien bis zu 10 Minuten aus dem Browser-Cache. Darum haben die Dateien in `index.html` eine Versionsnummer (`?v=…`). Bei Änderungen an `quiz.js`, `race.js`, `quiz.css` oder `config.js` die Nummer erhöhen, sonst sieht man zeitweise Alt/Neu gemischt (z. B. Namen im Warteraum ohne Kästchen).
+
+## Personen entfernen und umbenennen (Lehrkraft)
+Im Warteraum und im Rennen hat jede Person zwei Knöpfe: **✎ Umbenennen** (neuen Spitznamen eintippen, 2 bis 20 Zeichen, bei doppeltem Namen kommt eine Meldung) und **× Entfernen**. Nützlich bei unpassenden Spitznamen. Datenbank: `quiz_rename_player` (nur mit Raum-Geheimnis der Lehrkraft) und `quiz_remove_player`. Entfernte Personen sehen „Du bist nicht mehr im Raum“ mit Knopf zum erneuten Beitreten. Wer umbenannt wurde, sieht den neuen Namen bei der Lehrkraft und in der Rennbahn sofort; auf dem eigenen Handy steht bis zum Neu-Beitritt noch der alte Name. In der Beamer-Ansicht sind die Knöpfe ausgeblendet; zusätzlich gibt es „Namen ausblenden“.
