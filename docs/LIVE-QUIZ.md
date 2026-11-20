@@ -66,3 +66,6 @@ Im Warteraum sehen Schüler/innen unter dem Wartetext ein kleines Pixel-Spiel (`
 
 **Beamer-Bestenliste:** Nach jeder Runde sendet das Handy nur den Punktestand (Zahl) an den Raum (`quiz_game_score`, nur im Warteraum, nur mit eigenem Token, höchstens 99999, es zählt der beste Wert). Die Lehrkraft sieht im Warteraum die Top 5 „Hürdenritt · Bestenliste“ (in der Beamer-Ansicht groß, mit „Namen ausblenden“ als SuS 1, 2 …). Datenbank: Spalte `quiz_players.game_best`, Funktion `quiz_game_score`, `quiz_teacher_state` liefert `gs` je Person. Keine neuen personenbezogenen Daten, der Spielstand verschwindet mit dem Raum (24 Stunden). Rekord und Pferdefarbe bleiben nur lokal. Die Pferde-Pixel kommen aus `race.js` (`QuizRace.pix`).
 
+
+## Demo-Quiz
+Im Setup gibt es den Knopf „Demo-Quiz laden: Deutsche Geschichte (10 Fragen)“ zum schnellen Ausprobieren (`DEMO_QS` in `quiz.js`).

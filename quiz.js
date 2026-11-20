@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "12";
+  const CSS_NEED = "13";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -518,6 +518,21 @@ Beispiel:
 Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;A;;Berlin ist seit 1990 Hauptstadt.
 Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Der Arbeitgeber beendet das Arbeitsverhältnis.`;
 
+  /* Demo-Quiz (für Lehrkraft zum Ausprobieren): Deutsche Geschichte, 10 Fragen */
+  const DEMO_TITLE = "Deutsche Geschichte";
+  const DEMO_QS = [
+    { t: "mc", q: "In welchem Jahr wurde das Deutsche Kaiserreich gegründet?", o: ["1848", "1871", "1914", "1933"], a: 1, e: "1871 wurde Wilhelm I. in Versailles zum Kaiser ausgerufen." },
+    { t: "mc", q: "Wer war der erste Reichskanzler des Kaiserreichs?", o: ["Otto von Bismarck", "Paul von Hindenburg", "Konrad Adenauer", "Gustav Stresemann"], a: 0, e: "Bismarck war von 1871 bis 1890 Reichskanzler." },
+    { t: "mc", q: "In welchem Jahr begann der Erste Weltkrieg?", o: ["1905", "1914", "1918", "1939"], a: 1, e: "Der Erste Weltkrieg dauerte von 1914 bis 1918." },
+    { t: "mc", q: "Die Weimarer Republik war die erste Demokratie in Deutschland.", o: ["Richtig", "Falsch"], a: 0, e: "Sie wurde nach dem Ende des Kaiserreichs 1918/1919 gegründet." },
+    { t: "mc", q: "In welchem Jahr wurde Adolf Hitler zum Reichskanzler ernannt?", o: ["1923", "1929", "1933", "1939"], a: 2, e: "Am 30. Januar 1933 begann die Zeit des Nationalsozialismus." },
+    { t: "mc", q: "Mit dem Überfall auf welches Land begann 1939 der Zweite Weltkrieg?", o: ["Frankreich", "Österreich", "Polen", "Russland"], a: 2, e: "Deutschland überfiel am 1. September 1939 Polen." },
+    { t: "mc", q: "In welchem Jahr endete der Zweite Weltkrieg in Europa?", o: ["1943", "1945", "1949", "1961"], a: 1, e: "Am 8. Mai 1945 kapitulierte Deutschland." },
+    { t: "mc", q: "In welchem Jahr wurden die Bundesrepublik Deutschland und die DDR gegründet?", o: ["1945", "1949", "1955", "1961"], a: 1, e: "Das Grundgesetz der BRD trat im Mai 1949 in Kraft, die DDR folgte im Oktober 1949." },
+    { t: "mc", q: "In welchem Jahr wurde die Berliner Mauer gebaut?", o: ["1949", "1953", "1961", "1989"], a: 2, e: "Der Bau begann am 13. August 1961." },
+    { t: "mc", q: "In welchem Jahr wurde Deutschland wiedervereinigt?", o: ["1989", "1990", "1991", "1995"], a: 1, e: "Die Mauer fiel am 9. November 1989, die Einheit folgte am 3. Oktober 1990." }
+  ];
+
   function viewSetup() {
     let draft = store.get("quiz.draft", { title: "", qs: [] });
     const save = () => store.set("quiz.draft", draft);
@@ -530,6 +545,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${LIVE ? `<label class="field"><span>Lehrer-PIN${pin ? " (gespeichert)" : ""}</span><input class="input" id="pin" type="password" autocomplete="off" value="${esc(pin)}"></label>` : ""}
         <h3 class="section-head">Fragen · <span id="cnt"></span></h3>
         <ol class="chosen" id="chosen"></ol>
+        <button class="btn ghost sm" id="demoQ" type="button">Demo-Quiz laden: Deutsche Geschichte (10 Fragen)</button>
         <details class="add" id="dCourse"><summary>Aus einem Kurs wählen</summary><div class="in" id="courseBox"><p class="hint">Lade Kurse …</p></div></details>
         <details class="add" id="dKi"><summary>Anleitung: Quiz mit KI erstellen</summary><div class="in" id="kiBox"></div></details>
         <details class="add" id="dFile"><summary>Quiz aus Datei laden</summary><div class="in" id="fileBox"></div></details>
@@ -547,6 +563,11 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     paint();
     el.querySelector("#title").oninput = (e) => { draft.title = e.target.value; save(); };
     const add = (qs) => { const room = MAX_Q - draft.qs.length; draft.qs.push(...qs.slice(0, room)); save(); paint(); };
+
+    el.querySelector("#demoQ").onclick = () => {
+      if (!draft.title.trim()) { draft.title = DEMO_TITLE; el.querySelector("#title").value = DEMO_TITLE; }
+      add(structuredClone(DEMO_QS));
+    };
 
     /* Kurs-Auswahl */
     el.querySelector("#dCourse").addEventListener("toggle", async function () {
@@ -733,7 +754,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
         <button class="btn pink block startbtn" id="bStart" style="margin-top:18px" ${ps.length ? "" : "disabled"}>Quiz starten (${ps.length})</button>` : `
-        <div class="stats" style="margin-top:16px"><div><div class="v">${ps.length}</div><div class="k">Dabei</div></div><div><div class="v">${finished}</div><div class="k">Fertig</div></div><div><div class="v">${avg}%</div><div class="k">Ø richtig</div></div></div>
+        <div class="stats" style="margin-top:16px"><div><div class="v">${ps.length}</div><div class="k">Dabei</div></div><div><div class="v">${finished}</div><div class="k">Fertig</div></div><div><div class="v">${answered}<small>/${n * ps.length}</small></div><div class="k">Beantwortet</div></div><div><div class="v">${right}<small> · ${avg}%</small></div><div class="k">Richtig</div></div></div>
         <div class="row no-beamer" style="margin-top:16px">
           <button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>
           <button class="btn sm ghost" id="bView">Ansicht: ${view === "race" ? "Rennen" : "Einzeln"}</button>

@@ -112,7 +112,7 @@
       const steps = stp(p);
       runner.style.setProperty("--p", n ? Math.min(1, steps / n) : 0);
       lane.querySelector(".num").textContent = steps;
-      lane.querySelector(".okc").textContent = `${p.ok} ✓`;
+      lane.querySelector(".okc").textContent = o.detail ? `${p.ok} ✓ · ${p.done}` : `${p.done} Antw.`;
       lane.querySelectorAll(".dots i").forEach((d, k) => { d.className = p.r[k] === true ? "ok" : p.r[k] === false ? "no" : ""; });
       if (steps > old && !S.first) {
         const inc = steps - old;
