@@ -39,9 +39,24 @@
     });
     return out;
   }
+  /* EPX/Scale2x: verdoppelt die Auflösung eines Pixel-Bildes und glättet Treppen an Diagonalen, Zeichen bleiben Palettenbuchstaben */
+  function epx(rows) {
+    const h = rows.length, w = rows[0].length, g = (x, y, d) => (x < 0 || y < 0 || x >= w || y >= h ? d : rows[y][x]);
+    const out = [];
+    for (let y = 0; y < h; y++) {
+      let r1 = "", r2 = "";
+      for (let x = 0; x < w; x++) {
+        const P = rows[y][x], A = g(x, y - 1, P), B = g(x + 1, y, P), C = g(x - 1, y, P), D = g(x, y + 1, P);
+        r1 += (C === A && C !== D && A !== B) ? A : P; r1 += (A === B && A !== C && B !== D) ? B : P;
+        r2 += (D === C && D !== B && C !== A) ? C : P; r2 += (B === D && B !== A && D !== C) ? D : P;
+      }
+      out.push(r1, r2);
+    }
+    return out;
+  }
   const SYMBOLS = `<svg class="r-defs" width="0" height="0" aria-hidden="true"><defs>
-    <symbol id="rh-a" viewBox="0 0 36 28">${rects(FRAME_A)}</symbol>
-    <symbol id="rh-b" viewBox="0 0 36 28">${rects(FRAME_B)}</symbol>
+    <symbol id="rh-a" viewBox="0 0 72 56">${rects(epx(FRAME_A))}</symbol>
+    <symbol id="rh-b" viewBox="0 0 72 56">${rects(epx(FRAME_B))}</symbol>
     <symbol id="fan-a" viewBox="0 0 11 9">${fanRects(FAN_A)}</symbol>
     <symbol id="fan-b" viewBox="0 0 11 9">${fanRects(FAN_B)}</symbol>
     <symbol id="rh-crown" viewBox="0 0 9 6"><path d="M0 6V1l2 2 2.5-3L7 3l2-2v5z" fill="#FFD84D" stroke="#1E1E1E" stroke-width=".8" stroke-linejoin="round"/></symbol>
@@ -64,7 +79,7 @@
           <div class="goal"></div><div class="dots">${Array.from({ length: n }, () => "<i></i>").join("")}</div>
           <div class="runner" style="--p:0">
             <svg class="crown" width="21" height="14"><use href="#rh-crown"/></svg>
-            <svg class="horse" viewBox="0 0 36 28" width="59" height="46"><use class="fa" href="#rh-a"/><use class="fb" href="#rh-b"/></svg>
+            <svg class="horse" viewBox="0 0 72 56" width="59" height="46"><use class="fa" href="#rh-a"/><use class="fb" href="#rh-b"/></svg>
           </div></div>
         <div class="lsc"><span class="num">0</span><small>/${n}</small><span class="place"></span><span class="okc"></span></div>
       </div>`).join("");
@@ -164,5 +179,5 @@
       : `<div class="step s${k + 1} none"><div class="blk"><b>${k + 1}</b></div></div>`; }).join("");
   }
 
-  window.QuizRace = { html, update, sig, pix: { FRAME_A, FRAME_B, HORSE, JOCKEY } };
+  window.QuizRace = { html, update, sig, pix: { FRAME_A, FRAME_B, HORSE, JOCKEY }, epx };
 })();
