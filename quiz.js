@@ -375,6 +375,36 @@
     render();
   }
 
+  /* ── Lehrkraft: Ergebnis als Tabelle (CSV für Excel) ──────────── */
+  /* Läuft nur im Browser der Lehrkraft. Spalten mit Semikolon und UTF-8-BOM, damit Excel (deutsch) Umlaute und Spalten richtig öffnet. */
+  function exportCsv(st, ps, code) {
+    const n = st.questions.length;
+    const cell = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;           /* Schutz vor Formeln in Spitznamen */
+      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const line = (a) => a.map(cell).join(";");
+    const d = new Date(), day = d.toISOString().slice(0, 10);
+    const rows = [
+      line(["Quiz", st.title || ""]), line(["Raum", code]), line(["Datum", d.toLocaleDateString("de-DE")]), line(["Aufholbonus", st.bonus ? "an" : "aus"]), "",
+      line(["Nr", "Spitzname", "Richtig", "Falsch", "Nicht beantwortet", "Bonuspunkte", "Punkte gesamt", "Prozent richtig", ...st.questions.map((_, i) => `Frage ${i + 1}`)])
+    ];
+    [...ps].sort((a, b) => (b.ok + (b.bn || 0)) - (a.ok + (a.bn || 0)) || a.i - b.i).forEach((p, k) => {
+      const wrong = p.r.filter((x) => x === false).length;
+      rows.push(line([k + 1, p.nick, p.ok, wrong, n - p.ok - wrong, p.bn || 0, p.ok + (p.bn || 0), n ? Math.round((100 * p.ok) / n) + " %" : "", ...p.r.map((x) => (x === true ? "richtig" : x === false ? "falsch" : "–"))]));
+    });
+    rows.push("", line(["Frage", "Text", "Beantwortet", "Richtig", "Quote richtig"]));
+    st.questions.forEach((q, i) => {
+      const a = ps.filter((p) => p.r[i] !== null), k = a.filter((p) => p.r[i] === true).length;
+      rows.push(line([i + 1, q.q, a.length, k, a.length ? Math.round((100 * k) / a.length) + " %" : ""]));
+    });
+    const blob = new Blob(["\ufeff" + rows.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = `quiz-${code}-${day}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   /* ── Lehrkraft: Quiz zusammenstellen ─────────────────────────── */
   /* Kursfragen kommen aus dem Lernraum (nur lesend, öffentlich) */
   const COURSE_BASE = "https://lernen.yannikbrand.eu/app/";
@@ -696,6 +726,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
           <button class="btn sm ghost" id="bView">Ansicht: ${view === "race" ? "Rennen" : "Einzeln"}</button>
           ${view === "race" ? `<button class="btn sm ${detail ? "on" : "ghost"}" id="bDetail">Einzelantworten: ${detail ? "an" : "aus"}</button>` : `<button class="btn sm ghost" id="bSort">Sortierung: ${sortBy === "join" ? "Beitritt" : "Fortschritt"}</button>`}
           <button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button>
+          ${ps.length ? `<button class="btn sm ghost" id="bCsv">Ergebnis exportieren</button>` : ""}
           <span class="grow"></span>
           ${closed ? "" : `<button class="btn sm ${st.bonus ? "on" : "ghost"}" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button>`}
           ${closed ? `<button class="btn sm ghost" id="bOpen">Wieder öffnen</button><button class="btn sm ghost" id="bDel">Raum löschen</button>` : `<button class="btn sm" id="bEnd">Quiz beenden</button>`}
@@ -723,6 +754,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       if ($("#bHide")) $("#bHide").onclick = () => { hide = !hide; store.set("quiz.hideNames", hide); paint(); };
       if ($("#bSort")) $("#bSort").onclick = () => { sortBy = sortBy === "join" ? "progress" : "join"; store.set("quiz.sort", sortBy); paint(); };
       if ($("#bBeam")) $("#bBeam").onclick = () => setBeamer(true);
+      if ($("#bCsv")) $("#bCsv").onclick = () => exportCsv(st, ps, code);
       if ($("#bOff")) $("#bOff").onclick = () => setBeamer(false);
       if ($("#bEnd")) $("#bEnd").onclick = async () => { if (confirm("Quiz für alle beenden? Danach kann niemand mehr antworten.")) { await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "closed" }); pull(); } };
       if ($("#bOpen")) $("#bOpen").onclick = async () => { await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "open" }); pull(); };
