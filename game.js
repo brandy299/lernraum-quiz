@@ -201,11 +201,11 @@
       groundOff = (groundOff + bg) % 16;
     }
 
-    const px = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+    const px = (c, x, y, w, h, al) => { if (al) ctx.globalAlpha = al; ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); if (al) ctx.globalAlpha = 1; };
 
     const circle = (cx, cy, r, c) => { for (let y = -r; y <= r; y++) { const w = Math.floor(Math.sqrt(r * r - y * y)); px(c, cx - w, cy + y, w * 2 + 1, 1); } };
-    const win = (x, y, w, h, base, lit, n) => {   /* Fenster-Raster eines Hauses */
-      for (let yy = y + 3; yy < y + h - 3; yy += 6) for (let xx = x + 3; xx < x + w - 3; xx += 5) { const on = hash(n * 31 + xx * 3.1 + yy * 7.7) > .45; px(on ? lit : base, xx, yy, 2, 3); }
+    const win = (x, y, w, h, base, lit, n, th) => {   /* Fenster-Raster eines Hauses */
+      for (let yy = y + 3; yy < y + h - 3; yy += 6) for (let xx = x + 3; xx < x + w - 3; xx += 5) { const on = hash(n * 31 + xx * 3.1 + yy * 7.7) > th; px(on ? lit : base, xx, yy, 2, 3); }
     };
     function drawThing(o) {
       const x = Math.round(o.x), W_ = WORLDS[world];
@@ -234,7 +234,7 @@
           px("#1E1E1E", x + 2, GROUND - 14, 2, 3); px("#1E1E1E", x + 14, GROUND - 14, 2, 3);
         } else if (world === 2) {                        /* Neon-Block */
           const f = Math.floor(t * 8 + o.x) % 9 === 0;
-          px(f ? "#8A1AFF" : "#FF2BD6", x - 1, GROUND - 13, 20, 14); px("#14062E", x, GROUND - 12, 18, 12); px("#00E5FF", x + 2, GROUND - 10, 14, 2); px("#00E5FF", x + 2, GROUND - 5, 8, 2);
+          px("#FFFFFF", x - 2, GROUND - 14, 22, 15); px(f ? "#8A1AFF" : "#FF2BD6", x - 1, GROUND - 13, 20, 14); px("#14062E", x, GROUND - 12, 18, 12); px("#00E5FF", x + 2, GROUND - 10, 14, 2); px("#00E5FF", x + 2, GROUND - 5, 8, 2);
         } else {                                         /* Mondfelsen */
           px("#1E1E1E", x, GROUND - 11, 18, 11); px("#A1A6BC", x + 1, GROUND - 10, 16, 10); px("#7C8199", x + 1, GROUND - 6, 16, 6); px("#C9CDE0", x + 4, GROUND - 9, 5, 2); px("#6B7085", x + 10, GROUND - 4, 4, 2);
         }
@@ -246,7 +246,7 @@
         const sq = Math.abs(Math.sin(t * 6 + o.x * .1));         /* drehende Münze */
         const w = Math.max(1, Math.round(5 * (.25 + .75 * sq)));
         const cx = Math.round(o.x) + 2 - Math.floor(w / 2);
-        px("#1E1E1E", cx - 1, Math.round(o.y) - 1, w + 2, 7);
+        px(world >= 2 ? "#FFFFFF" : "#1E1E1E", cx - 1, Math.round(o.y) - 1, w + 2, 7);
         px("#FFD84D", cx, Math.round(o.y), w, 5);
         if (w > 2) px("#FFF3B0", cx + 1, Math.round(o.y) + 1, 1, 2);
       }
@@ -258,7 +258,7 @@
       for (let i = -1; i < Math.ceil(W / tile) + 2; i++) {
         const n = k0 + i, x = Math.round(i * tile - off), h = Math.round(minH + hash(n + seedBase) * (maxH - minH)), w = tile - 2;
         colorFn(x, GROUND - h, w, h, n);
-        if (winLit) win(x, GROUND - h, w, h, winLit[0], winLit[1], n);
+        if (winLit) win(x, GROUND - h, w, h, winLit[0], winLit[1], n, winLit[2] || .45);
       }
     }
     function drawWorld(w) {
@@ -270,16 +270,18 @@
         { const tile = 50, f = .3, k0 = Math.floor(sc * f / tile), off = sc * f % tile; for (let i = -1; i < 7; i++) { const h = 14 + hash(k0 + i + 99) * 16, x = i * tile - off; px("#7BD9A0", x, GROUND - h, 56, h); px("#7BD9A0", x + 6, GROUND - h - 4, 44, 4); px("#7BD9A0", x + 14, GROUND - h - 7, 28, 3); } }
       } else if (w === 1) {                               /* Stadt: Häuserzeilen, Laternen */
         for (const c of clouds) { const x = Math.round(c.x), y = Math.round(c.y); px("#E6EAF2", x + 4, y, c.w - 8, 4); px("#E6EAF2", x, y + 3, c.w, 4); }
-        layerBuildings(.12, 22, 22, 56, (x, y, bw, bh) => px("#9DAAC0", x, y, bw, bh), 5, ["#8E9BB1", "#C7D2E6"]);
-        layerBuildings(.3, 30, 28, 78, (x, y, bw, bh) => { px("#1E1E1E", x - 1, y - 1, bw + 2, bh + 1); px("#6F7C93", x, y, bw, bh); px("#5B677C", x, y, bw, 3); }, 17, ["#55607A", "#FFE9A3"]);
+        layerBuildings(.12, 22, 22, 56, (x, y, bw, bh) => px("#9DAAC0", x, y, bw, bh), 5, ["#8E9BB1", "#B4C0D6", .8]);
+        layerBuildings(.3, 30, 28, 78, (x, y, bw, bh) => { px("#1E1E1E", x - 1, y - 1, bw + 2, bh + 1); px("#6F7C93", x, y, bw, bh); px("#5B677C", x, y, bw, 3); }, 17, ["#55607A", "#A9B6CF", .72]);
+        px("#B8C4D6", 0, 0, W, GROUND, .38);               /* Hintergrund treten lassen: Hindernisse und Münzen bleiben gut sichtbar */
       } else if (w === 2) {                               /* Cyberpunk: Neon-Sonne, Türme, Schilder */
         for (let i = 0; i < 6; i++) px(i % 2 ? "#FF2BD6" : "#FF7A59", 176 + i, 12 + i * 3, 28 - i * 2, 2);
-        layerBuildings(.12, 24, 28, 70, (x, y, bw, bh, n) => { px("#2B0F55", x, y, bw, bh); px(hash(n) > .5 ? "#00E5FF" : "#FF2BD6", x, y, bw, 1); px("#1D0A3C", x + bw - 3, y, 3, bh); }, 23, ["#3A1580", "#B65CFF"]);
+        layerBuildings(.12, 24, 28, 70, (x, y, bw, bh, n) => { px("#2B0F55", x, y, bw, bh); px(hash(n) > .5 ? "#00E5FF" : "#FF2BD6", x, y, bw, 1); px("#1D0A3C", x + bw - 3, y, 3, bh); }, 23, ["#3A1580", "#7A3FD0", .8]);
         layerBuildings(.32, 34, 36, 92, (x, y, bw, bh, n) => {
           px("#00E5FF", x - 1, y - 1, bw + 2, bh + 1); px("#12062B", x, y, bw, bh);
           const c = hash(n + 7) > .5 ? "#FF2BD6" : "#00E5FF", fl = Math.floor(t * 6 + n) % 11 === 0;
           px(fl ? "#12062B" : c, x + 4, y + 8, bw - 8, 3); px(fl ? "#12062B" : c, x + 4, y + 16, Math.round((bw - 8) / 2), 3);
-        }, 41, ["#2A1058", "#FFE45C"]);
+        }, 41, ["#2A1058", "#6B3FB8", .75]);
+        px("#0A0420", 0, 0, W, GROUND, .5);
       } else {                                            /* Weltraum: Sterne, Ringplanet, Erde */
         for (const st of stars) { const x = ((st.x - sc * (.03 + st.s * .02)) % W + W) % W; const tw = .5 + .5 * Math.sin(t * 2 + st.ph); if (tw > .3) px("#FFF8D6", x, st.y, st.s, st.s); }
         circle(54, 38, 15, "#C98A5B"); circle(54, 38, 15, "#C98A5B"); px("#A8693F", 40, 34, 28, 3); px("#E4B58A", 44, 42, 20, 2); px("#E9D9A8", 38, 40, 32, 1); px("#E9D9A8", 36, 38, 36, 1);
