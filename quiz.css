@@ -1,5 +1,5 @@
 /* Live-Quiz – ergänzt app/styles.css (Typesafe-Stil) */
-:root { --quiz-css: 12; }
+:root { --quiz-css: 13; }
 .qz { max-width: 560px; margin: 0 auto; padding: calc(var(--safe-t) + 14px) var(--gutter) calc(var(--safe-b) + 60px); animation: enter .35s var(--ease) both; }
 .qz.still { animation: none; }
 .qz .row > .btn.sm { flex: 1 1 calc(50% - 10px); }
@@ -218,3 +218,18 @@ body.beamer .qz .startbtn { min-height: 90px; font-size: 32px; }
 .qz .game-canvas { display: block; width: 100%; aspect-ratio: 240 / 135; image-rendering: pixelated; image-rendering: crisp-edges; border: 2px solid var(--ink); background: #9FD0FF; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
 .qz .game-hint { margin-top: 8px; font: 500 12.5px/1.4 var(--mono); color: var(--ink-2); }
 .qz .race:not(.detail) .okc { color: rgba(255, 255, 255, .7); }
+
+/* Warteraum-Spiel: Pferdefarbe und Bestenliste (Lehrkraft/Beamer) */
+.qz .game-colors { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.qz .gc { width: 44px; height: 44px; border: 2px solid var(--ink); background: var(--paper); display: grid; place-items: center; padding: 0; }
+.qz .gc i { display: block; width: 22px; height: 22px; border: 2px solid var(--ink); }
+.qz .gc.on { background: var(--pink-fill); box-shadow: 3px 3px 0 var(--ink); }
+.qz .board { list-style: none; display: grid; gap: 8px; margin-top: 4px; }
+.qz .board li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 90px auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 10px; border: 2px solid var(--ink); background: var(--paper); font: 700 15px/1.2 var(--mono); }
+.qz .board li:first-child { background: var(--pink-soft); }
+.qz .board .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qz .board .bar { height: 12px; border: 1.5px solid var(--ink); background: var(--paper-2); }
+.qz .board .bar i { display: block; height: 100%; background: var(--ink); }
+.qz .board em { font-style: normal; min-width: 3ch; text-align: right; }
+body.beamer .qz .board li { font-size: 28px; min-height: 64px; grid-template-columns: 44px minmax(0, 1fr) 220px auto; }
+body.beamer .qz .board .bar { height: 20px; }

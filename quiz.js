@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "12";
+  const CSS_NEED = "13";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -129,7 +129,7 @@
       case "quiz_teacher_state": {
         const r = room(a.p_code, a.p_secret);
         const players = db.players.filter((p) => p.code === a.p_code).map((p) => ({
-          id: p.id, nick: p.nick, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length,
+          id: p.id, nick: p.nick, gs: p.gs || 0, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length,
           r: r.questions.map((_, i) => { const x = db.answers.find((y) => y.pid === p.id && y.q === i); return x ? x.ok : null; })
         }));
         return { status: r.status, title: r.title, questions: r.questions, players, created: r.created, bonus: !!r.bonus };
@@ -137,6 +137,11 @@
       case "quiz_set_bonus": room(a.p_code, a.p_secret).bonus = !!a.p_bonus; save(); return null;
       case "quiz_set_status": room(a.p_code, a.p_secret).status = a.p_status; save(); return null;
       case "quiz_remove_player": room(a.p_code, a.p_secret); db.players = db.players.filter((p) => p.id !== a.p_pid); save(); return null;
+      case "quiz_game_score": {
+        const r = room(a.p_code); const pl = player(a.p_code, a.p_pid, a.p_token);
+        if (r.status === "lobby") pl.gs = Math.max(pl.gs || 0, Math.min(99999, Math.max(0, Number(a.p_score) || 0)));
+        save(); return null;
+      }
       case "quiz_rename_player": {
         room(a.p_code, a.p_secret);
         const nick = String(a.p_nick || "").trim().slice(0, 20);
@@ -305,7 +310,7 @@
         <div class="waitdots" aria-hidden="true"><i></i><i></i><i></i></div>
         <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>
         <h3 class="section-head">Spiel zum Warten</h3>${window.QuizGame ? QuizGame.html() : ""}`);
-      const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0)) : () => {};
+      const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0), { onScore: (sc) => { rpc("quiz_game_score", { p_code: code, p_pid: me.pid, p_token: me.token, p_score: sc }).catch(() => {}); } }) : () => {};
       every(2000, async () => {
         let s2;
         try { s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
@@ -513,6 +518,21 @@ Beispiel:
 Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;A;;Berlin ist seit 1990 Hauptstadt.
 Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Der Arbeitgeber beendet das Arbeitsverhältnis.`;
 
+  /* Demo-Quiz (für Lehrkraft zum Ausprobieren): Deutsche Geschichte, 10 Fragen */
+  const DEMO_TITLE = "Deutsche Geschichte";
+  const DEMO_QS = [
+    { t: "mc", q: "In welchem Jahr wurde das Deutsche Kaiserreich gegründet?", o: ["1848", "1871", "1914", "1933"], a: 1, e: "1871 wurde Wilhelm I. in Versailles zum Kaiser ausgerufen." },
+    { t: "mc", q: "Wer war der erste Reichskanzler des Kaiserreichs?", o: ["Otto von Bismarck", "Paul von Hindenburg", "Konrad Adenauer", "Gustav Stresemann"], a: 0, e: "Bismarck war von 1871 bis 1890 Reichskanzler." },
+    { t: "mc", q: "In welchem Jahr begann der Erste Weltkrieg?", o: ["1905", "1914", "1918", "1939"], a: 1, e: "Der Erste Weltkrieg dauerte von 1914 bis 1918." },
+    { t: "mc", q: "Die Weimarer Republik war die erste Demokratie in Deutschland.", o: ["Richtig", "Falsch"], a: 0, e: "Sie wurde nach dem Ende des Kaiserreichs 1918/1919 gegründet." },
+    { t: "mc", q: "In welchem Jahr wurde Adolf Hitler zum Reichskanzler ernannt?", o: ["1923", "1929", "1933", "1939"], a: 2, e: "Am 30. Januar 1933 begann die Zeit des Nationalsozialismus." },
+    { t: "mc", q: "Mit dem Überfall auf welches Land begann 1939 der Zweite Weltkrieg?", o: ["Frankreich", "Österreich", "Polen", "Russland"], a: 2, e: "Deutschland überfiel am 1. September 1939 Polen." },
+    { t: "mc", q: "In welchem Jahr endete der Zweite Weltkrieg in Europa?", o: ["1943", "1945", "1949", "1961"], a: 1, e: "Am 8. Mai 1945 kapitulierte Deutschland." },
+    { t: "mc", q: "In welchem Jahr wurden die Bundesrepublik Deutschland und die DDR gegründet?", o: ["1945", "1949", "1955", "1961"], a: 1, e: "Das Grundgesetz der BRD trat im Mai 1949 in Kraft, die DDR folgte im Oktober 1949." },
+    { t: "mc", q: "In welchem Jahr wurde die Berliner Mauer gebaut?", o: ["1949", "1953", "1961", "1989"], a: 2, e: "Der Bau begann am 13. August 1961." },
+    { t: "mc", q: "In welchem Jahr wurde Deutschland wiedervereinigt?", o: ["1989", "1990", "1991", "1995"], a: 1, e: "Die Mauer fiel am 9. November 1989, die Einheit folgte am 3. Oktober 1990." }
+  ];
+
   function viewSetup() {
     let draft = store.get("quiz.draft", { title: "", qs: [] });
     const save = () => store.set("quiz.draft", draft);
@@ -525,6 +545,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${LIVE ? `<label class="field"><span>Lehrer-PIN${pin ? " (gespeichert)" : ""}</span><input class="input" id="pin" type="password" autocomplete="off" value="${esc(pin)}"></label>` : ""}
         <h3 class="section-head">Fragen · <span id="cnt"></span></h3>
         <ol class="chosen" id="chosen"></ol>
+        <button class="btn ghost sm" id="demoQ" type="button">Demo-Quiz laden: Deutsche Geschichte (10 Fragen)</button>
         <details class="add" id="dCourse"><summary>Aus einem Kurs wählen</summary><div class="in" id="courseBox"><p class="hint">Lade Kurse …</p></div></details>
         <details class="add" id="dKi"><summary>Anleitung: Quiz mit KI erstellen</summary><div class="in" id="kiBox"></div></details>
         <details class="add" id="dFile"><summary>Quiz aus Datei laden</summary><div class="in" id="fileBox"></div></details>
@@ -542,6 +563,11 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     paint();
     el.querySelector("#title").oninput = (e) => { draft.title = e.target.value; save(); };
     const add = (qs) => { const room = MAX_Q - draft.qs.length; draft.qs.push(...qs.slice(0, room)); save(); paint(); };
+
+    el.querySelector("#demoQ").onclick = () => {
+      if (!draft.title.trim()) { draft.title = DEMO_TITLE; el.querySelector("#title").value = DEMO_TITLE; }
+      add(structuredClone(DEMO_QS));
+    };
 
     /* Kurs-Auswahl */
     el.querySelector("#dCourse").addEventListener("toggle", async function () {
@@ -691,6 +717,13 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     const raceSig = (ps, n) => QuizRace.sig(ps, n, raceOpts());
     function raceHtml(ps, n) { return QuizRace.html(ps, n, raceOpts()); }
     function raceUpdate(ps, n) { QuizRace.update(root.querySelector("#race"), ps, n, raceOpts()); }
+    /* Bestenliste Warteraum-Spiel (nur Warteraum, Top 5, im Beamer groß) */
+    function board(ps) {
+      const top = [...ps].filter((p) => p.gs > 0).sort((a, b) => b.gs - a.gs || a.i - b.i).slice(0, 5);
+      if (!top.length) return "";
+      const max = top[0].gs;
+      return `<h3 class="section-head">Hürdenritt · Bestenliste</h3><ol class="board">${top.map((p, k) => `<li><b>${k + 1}</b><span class="nm">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}</span><span class="bar"><i style="width:${Math.max(6, Math.round((100 * p.gs) / max))}%"></i></span><em>${p.gs}</em></li>`).join("")}</ol>`;
+    }
     function paint() {
       const n = st.questions.length, ps = st.players.map((p, i) => {
         const done = p.r.filter((x) => x !== null).length, ok = p.r.filter((x) => x === true).length;
@@ -716,6 +749,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${lobby ? `
         <h3 class="section-head">Warteraum · ${ps.length} dabei</h3>
         ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
+        ${board(ps)}
         <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button><button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
