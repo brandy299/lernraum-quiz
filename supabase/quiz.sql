@@ -35,6 +35,9 @@ create table if not exists quiz_players (
   unique (code, nick)
 );
 
+-- Spielstand des Warteraum-Spiels (nur Zahl, nur zum Spitznamen, nur im Warteraum)
+alter table quiz_players add column if not exists game_best int not null default 0;
+
 create table if not exists quiz_answers (
   player_id uuid not null references quiz_players(id) on delete cascade,
   q int not null,
@@ -185,7 +188,7 @@ begin
   select * into r from quiz_rooms where code = p_code and secret = p_secret;
   if not found then raise exception 'NO_ROOM'; end if;
   select coalesce(jsonb_agg(jsonb_build_object(
-      'id', p.id, 'nick', p.nick,
+      'id', p.id, 'nick', p.nick, 'gs', p.game_best,
       'bn', (select count(*) from quiz_answers a where a.player_id = p.id and a.bonus),
       'r', (select jsonb_agg((select a.ok from quiz_answers a where a.player_id = p.id and a.q = g) order by g)
             from generate_series(0, jsonb_array_length(r.questions) - 1) g)
@@ -231,6 +234,15 @@ begin
   if not found then raise exception 'NO_ROOM'; end if;
 end $$;
 
+create or replace function quiz_game_score(p_code text, p_pid uuid, p_token text, p_score int)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from quiz_rooms where code = p_code and status = 'lobby') then return; end if;
+  update quiz_players set game_best = greatest(game_best, least(greatest(coalesce(p_score, 0), 0), 99999))
+   where id = p_pid and code = p_code and token = p_token;
+  if not found then raise exception 'NO_PLAYER'; end if;
+end $$;
+
 create or replace function quiz_remove_player(p_code text, p_secret text, p_pid uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
@@ -266,6 +278,7 @@ grant execute on function
   quiz_set_status(text, text, text),
   quiz_set_bonus(text, text, boolean),
   quiz_remove_player(text, text, uuid),
+  quiz_game_score(text, uuid, text, int),
   quiz_rename_player(text, text, uuid, text),
   quiz_delete_room(text, text)
 to anon, authenticated;

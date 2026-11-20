@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "11";
+  const CSS_NEED = "12";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -129,7 +129,7 @@
       case "quiz_teacher_state": {
         const r = room(a.p_code, a.p_secret);
         const players = db.players.filter((p) => p.code === a.p_code).map((p) => ({
-          id: p.id, nick: p.nick, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length,
+          id: p.id, nick: p.nick, gs: p.gs || 0, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length,
           r: r.questions.map((_, i) => { const x = db.answers.find((y) => y.pid === p.id && y.q === i); return x ? x.ok : null; })
         }));
         return { status: r.status, title: r.title, questions: r.questions, players, created: r.created, bonus: !!r.bonus };
@@ -137,6 +137,11 @@
       case "quiz_set_bonus": room(a.p_code, a.p_secret).bonus = !!a.p_bonus; save(); return null;
       case "quiz_set_status": room(a.p_code, a.p_secret).status = a.p_status; save(); return null;
       case "quiz_remove_player": room(a.p_code, a.p_secret); db.players = db.players.filter((p) => p.id !== a.p_pid); save(); return null;
+      case "quiz_game_score": {
+        const r = room(a.p_code); const pl = player(a.p_code, a.p_pid, a.p_token);
+        if (r.status === "lobby") pl.gs = Math.max(pl.gs || 0, Math.min(99999, Math.max(0, Number(a.p_score) || 0)));
+        save(); return null;
+      }
       case "quiz_rename_player": {
         room(a.p_code, a.p_secret);
         const nick = String(a.p_nick || "").trim().slice(0, 20);
@@ -305,7 +310,7 @@
         <div class="waitdots" aria-hidden="true"><i></i><i></i><i></i></div>
         <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>
         <h3 class="section-head">Spiel zum Warten</h3>${window.QuizGame ? QuizGame.html() : ""}`);
-      const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0)) : () => {};
+      const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0), { onScore: (sc) => { rpc("quiz_game_score", { p_code: code, p_pid: me.pid, p_token: me.token, p_score: sc }).catch(() => {}); } }) : () => {};
       every(2000, async () => {
         let s2;
         try { s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
@@ -691,6 +696,13 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     const raceSig = (ps, n) => QuizRace.sig(ps, n, raceOpts());
     function raceHtml(ps, n) { return QuizRace.html(ps, n, raceOpts()); }
     function raceUpdate(ps, n) { QuizRace.update(root.querySelector("#race"), ps, n, raceOpts()); }
+    /* Bestenliste Warteraum-Spiel (nur Warteraum, Top 5, im Beamer groß) */
+    function board(ps) {
+      const top = [...ps].filter((p) => p.gs > 0).sort((a, b) => b.gs - a.gs || a.i - b.i).slice(0, 5);
+      if (!top.length) return "";
+      const max = top[0].gs;
+      return `<h3 class="section-head">Hürdenritt · Bestenliste</h3><ol class="board">${top.map((p, k) => `<li><b>${k + 1}</b><span class="nm">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}</span><span class="bar"><i style="width:${Math.max(6, Math.round((100 * p.gs) / max))}%"></i></span><em>${p.gs}</em></li>`).join("")}</ol>`;
+    }
     function paint() {
       const n = st.questions.length, ps = st.players.map((p, i) => {
         const done = p.r.filter((x) => x !== null).length, ok = p.r.filter((x) => x === true).length;
@@ -716,6 +728,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${lobby ? `
         <h3 class="section-head">Warteraum · ${ps.length} dabei</h3>
         ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
+        ${board(ps)}
         <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button><button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
