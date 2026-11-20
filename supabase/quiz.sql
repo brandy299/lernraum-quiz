@@ -238,6 +238,16 @@ begin
   delete from quiz_players where id = p_pid and code = p_code;
 end $$;
 
+create or replace function quiz_rename_player(p_code text, p_secret text, p_pid uuid, p_nick text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_nick text := left(btrim(coalesce(p_nick,'')), 20);
+begin
+  if not exists (select 1 from quiz_rooms where code = p_code and secret = p_secret) then raise exception 'NO_ROOM'; end if;
+  if length(v_nick) < 2 then raise exception 'BAD_NICK'; end if;
+  if exists (select 1 from quiz_players where code = p_code and id <> p_pid and lower(nick) = lower(v_nick)) then raise exception 'NICK_TAKEN'; end if;
+  update quiz_players set nick = v_nick where id = p_pid and code = p_code;
+end $$;
+
 create or replace function quiz_delete_room(p_code text, p_secret text)
 returns void language plpgsql security definer set search_path = public as $$
 begin
@@ -256,6 +266,7 @@ grant execute on function
   quiz_set_status(text, text, text),
   quiz_set_bonus(text, text, boolean),
   quiz_remove_player(text, text, uuid),
+  quiz_rename_player(text, text, uuid, text),
   quiz_delete_room(text, text)
 to anon, authenticated;
 

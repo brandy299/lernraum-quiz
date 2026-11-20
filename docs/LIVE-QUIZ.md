@@ -54,7 +54,10 @@ Nein. Lehrkräfte brauchen **kein Konto**, nur die gemeinsame Lehrer-PIN. Supaba
 Fehlermeldungen des Servers: `NO_PIN` (PIN nicht gesetzt), `BAD_PIN`, `NO_ROOM` (Code falsch oder Raum nach 24 h gelöscht), `NICK_TAKEN`, `FULL`, `CLOSED`.
 
 ## Hinweis für Updates
-GitHub Pages liefert Dateien bis zu 10 Minuten aus dem Browser-Cache. Darum haben die Dateien in `index.html` eine Versionsnummer (`?v=…`). Bei Änderungen an `quiz.js`, `race.js`, `game.js`, `quiz.css` oder `config.js` die Nummer erhöhen, sonst sieht man zeitweise Alt/Neu gemischt (z. B. Namen im Warteraum ohne Kästchen).
+GitHub Pages liefert Dateien bis zu 10 Minuten aus dem Browser-Cache. Darum haben die Dateien in `index.html` eine Versionsnummer (`?v=…`). Bei Änderungen an `quiz.js`, `race.js`, `quiz.css` oder `config.js` die Nummer erhöhen, sonst sieht man zeitweise Alt/Neu gemischt (z. B. Namen im Warteraum ohne Kästchen).
+
+## Personen entfernen und umbenennen (Lehrkraft)
+Im Warteraum und im Rennen hat jede Person zwei Knöpfe: **✎ Umbenennen** (neuen Spitznamen eintippen, 2 bis 20 Zeichen, bei doppeltem Namen kommt eine Meldung) und **× Entfernen**. Nützlich bei unpassenden Spitznamen. Datenbank: `quiz_rename_player` (nur mit Raum-Geheimnis der Lehrkraft) und `quiz_remove_player`. Entfernte Personen sehen „Du bist nicht mehr im Raum“ mit Knopf zum erneuten Beitreten. Wer umbenannt wurde, sieht den neuen Namen bei der Lehrkraft und in der Rennbahn sofort; auf dem eigenen Handy steht bis zum Neu-Beitritt noch der alte Name. In der Beamer-Ansicht sind die Knöpfe ausgeblendet; zusätzlich gibt es „Namen ausblenden“.
 
 ## Warteraum-Spiel „Hürdenritt“
 Im Warteraum sehen Schüler/innen unter dem Wartetext ein kleines Pixel-Spiel (`game.js`): Das Pferd galoppiert von selbst, Tippen aufs Bild (oder Leertaste) lässt es springen. Über Hürden und Büsche springen, Münzen sammeln, 3 Herzen, danach „nochmal“. Das Pferd hat die Farbe passend zum Spitznamen. Läuft nur im Browser: kein Server, keine Datenbank, keine neuen personenbezogenen Daten. Gespeichert wird allein der eigene Münz-Rekord als Zahl im Browser (`quiz.game.best`). Das Spiel endet automatisch, wenn die Lehrkraft das Quiz startet. Die Pferde-Pixel kommen aus `race.js` (`QuizRace.pix`).
