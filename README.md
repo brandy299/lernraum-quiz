@@ -18,6 +18,7 @@ nur im eigenen Browser (Lehrkraft in einem Tab, Schüler/innen in weiteren Tabs,
 | `index.html` | Einstieg, lädt alles |
 | `quiz.js` | Router, Schüler-/Lehreransicht, Fragen-Editor, KI-Anleitung, Demo-Backend |
 | `race.js` | Rennbahn-Grafik: Pferde, Reiter, Zuschauer, Effekte |
+| `game.js` | Warteraum-Spiel „Hürdenritt“ (Canvas, Pixel-Look, nur im Browser) |
 | `quiz.css` | Aussehen des Quiz |
 | `config.js` | Supabase-Adresse und öffentlicher Schlüssel |
 | `assets/` | Design, Schriften, QR-Code-Bibliothek (Kopie aus dem Lernraum) |
