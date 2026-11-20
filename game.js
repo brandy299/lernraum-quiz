@@ -10,7 +10,7 @@
    ============================================================ */
 (() => {
   "use strict";
-  const W = 240, H = 135, GROUND = 112, BEST_KEY = "quiz.game.best", HORSE_KEY = "quiz.game.horse";
+  const W = 240, H = 135, S = 2, GROUND = 112, BEST_KEY = "quiz.game.best", HORSE_KEY = "quiz.game.horse";
   const GRAV = 720, JUMP = -262, HORSE_X = 34, HOLD_MAX = .2, HOLD_G = .45;
   const SPEED0 = 70, SPEED_UP = 2.6, SPEED_MAX = 205;
   const COLORS = [0, 1, 2, 6, 7];              /* wählbare Pferdefarben (Index in QuizRace.pix.HORSE) */
@@ -32,8 +32,9 @@
       B: base, S: mix(base, "#000000", .28), F: mix(base, "#000000", .5), L: mix(base, "#ffffff", .22),
       D: "#2e1b0e", M: "#e0bf94", W: "#ffffff", E: "#111111", K: "#f2c9a0", G: "#ffffff", T: "#222222", J: jc, H: mix(jc, "#000000", .3)
     };
-    return [P.FRAME_A, P.FRAME_B].map((rows) => {
-      const c = document.createElement("canvas"); c.width = 36; c.height = 28;
+    return [P.FRAME_A, P.FRAME_B].map((r1) => {
+      const E = window.QuizRace.epx, rows = E ? E(r1) : r1;
+      const c = document.createElement("canvas"); c.width = rows[0].length; c.height = rows.length;
       const x = c.getContext("2d");
       rows.forEach((row, y) => { for (let i = 0; i < row.length; i++) { const k = row[i]; if (k !== "." && pal[k]) { x.fillStyle = pal[k]; x.fillRect(i, y, 1, 1); } } });
       return c;
@@ -54,7 +55,7 @@
   function html() {
     return `<section class="game" aria-label="Warte-Spiel Hürdenritt">
       <div class="game-hud" aria-live="off"><span class="g-hearts" id="gHearts" aria-label="Leben"></span><span class="g-score">Punkte <b id="gScore">0</b></span><span class="g-best">Rekord <b id="gBest">0</b></span></div>
-      <canvas id="gCanvas" class="game-canvas" width="${W}" height="${H}" role="img" aria-label="Pixel-Pferd, das über Hürden springt. Tippe auf das Bild zum Springen, halte für höhere Sprünge."></canvas>
+      <canvas id="gCanvas" class="game-canvas" width="${W * S}" height="${H * S}" role="img" aria-label="Pixel-Pferd, das über Hürden springt. Tippe auf das Bild zum Springen, halte für höhere Sprünge."></canvas>
       <p class="game-hint" id="gHint">Tippen = springen · halten = höher</p>
       <div class="game-colors" role="group" aria-label="Pferdefarbe">${COLORS.map((c, i) => `<button type="button" class="gc" data-c="${c}" aria-label="Pferdefarbe ${COLOR_NAMES[i]}" title="${COLOR_NAMES[i]}"><i></i></button>`).join("")}</div>
     </section>`;
@@ -201,11 +202,12 @@
       groundOff = (groundOff + bg) % 16;
     }
 
-    const px = (c, x, y, w, h, al) => { if (al) ctx.globalAlpha = al; ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); if (al) ctx.globalAlpha = 1; };
+    const hp = (v) => Math.round(v * 2) / 2;            /* halbe Pixel: doppelte Auflösung */
+    const px = (c, x, y, w, h, al) => { if (al) ctx.globalAlpha = al; ctx.fillStyle = c; ctx.fillRect(hp(x), hp(y), w, h); if (al) ctx.globalAlpha = 1; };
 
     const circle = (cx, cy, r, c) => { for (let y = -r; y <= r; y++) { const w = Math.floor(Math.sqrt(r * r - y * y)); px(c, cx - w, cy + y, w * 2 + 1, 1); } };
     const win = (x, y, w, h, base, lit, n, th) => {   /* Fenster-Raster eines Hauses */
-      for (let yy = y + 3; yy < y + h - 3; yy += 6) for (let xx = x + 3; xx < x + w - 3; xx += 5) { const on = hash(n * 31 + xx * 3.1 + yy * 7.7) > th; px(on ? lit : base, xx, yy, 2, 3); }
+      for (let yy = y + 2.5; yy < y + h - 3; yy += 4.5) for (let xx = x + 2.5; xx < x + w - 3; xx += 3.5) { const on = hash(n * 31 + xx * 3.1 + yy * 7.7) > th; px(on ? lit : base, xx, yy, 1.5, 2.5); }
     };
     function drawThing(o) {
       const x = Math.round(o.x), W_ = WORLDS[world];
@@ -311,7 +313,8 @@
     }
 
     function draw() {
-      const sx = shake > 0 ? Math.round(rnd(-2, 2)) : 0;
+      const sx = shake > 0 ? hp(rnd(-2, 2)) : 0;
+      ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
       ctx.save(); ctx.translate(sx, 0);
       px(skyA, -4, 0, W + 8, 60); px(skyB, -4, 60, W + 8, 60);
       drawWorld(world);
@@ -319,11 +322,11 @@
       for (const o of things) if (o.x < W + 4) drawThing(o);
       /* Tempolinien */
       if (mode === "run" && speed > 140) for (let i = 0; i < 5; i++) { const y = 20 + ((i * 37 + Math.floor(t * 9) * 13) % 80), x = ((i * 91 - t * speed * 1.4) % W + W) % W; px("rgba(255,255,255,.5)", x, y, 14 + (speed - 140) / 4, 1); }
-      for (const d of dust) px(world === 3 ? "#C9CDE0" : "#F2DDB6", d.x, d.y - 1, 2, 2);
+      for (const d of dust) px(world === 3 ? "#C9CDE0" : "#F2DDB6", d.x, d.y - 1, 1.5, 1.5);
       /* Pferd */
       const frame = (!onGround || mode !== "run") ? 0 : (Math.floor(t * (6 + speed / 28)) % 2);
       const blink = flash > 0 && Math.floor(t * 18) % 2 === 0;
-      if (hs && !blink) ctx.drawImage(hs[frame], HORSE_X, Math.round(GROUND - 27 + hy));
+      if (hs && !blink) ctx.drawImage(hs[frame], HORSE_X, hp(GROUND - 27 + hy), 36, 28);
       px("rgba(30,30,30,.25)", HORSE_X + 6, GROUND + 1, Math.max(8, 24 + Math.round(hy / 4)), 2);
       ctx.font = "bold 8px monospace"; ctx.textBaseline = "top";
       for (const p of pops) { ctx.fillStyle = "#1E1E1E"; ctx.fillText(p.s, Math.round(p.x) + 1, Math.round(p.y) + 1); ctx.fillStyle = p.s === "♥" ? "#FF6B81" : "#FFD84D"; ctx.fillText(p.s, Math.round(p.x), Math.round(p.y)); }
