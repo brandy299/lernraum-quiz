@@ -32,7 +32,7 @@ Regeln für diese Sitzung:
 - Arbeite nur in diesem Repo, immer auf einem eigenen Branch mit Pull Request, nie direkt auf main.
 - Zielgruppe sind Schüler/innen am Handy und die Lehrkraft am Beamer: Tippflächen mindestens 44 px, kein seitliches Scrollen ab 320 px, Deutsch.
 - Teste jede Änderung im Demo-Modus (leere config.js oder Playwright mit gesperrter config.js) mit mehreren Personen, bevor du den Pull Request öffnest. Prüfe auch die Konsole auf Fehler.
-- Ändere ich quiz.js, race.js, quiz.css oder config.js, erhöhe die Versionsnummer ?v=... in index.html und bei CSS-Änderungen --quiz-css in quiz.css und CSS_NEED in quiz.js gemeinsam.
+- Ändere ich quiz.js, race.js, game.js, quiz.css oder config.js, erhöhe die Versionsnummer ?v=... in index.html und bei CSS-Änderungen --quiz-css in quiz.css und CSS_NEED in quiz.js gemeinsam.
 - Datenbankänderungen nur in supabase/quiz.sql (idempotent). Schreibe in die Pull-Request-Beschreibung deutlich "SQL muss in Supabase ausgeführt werden". Spiele nichts selbst ein, das macht Yannik.
 - Schreibe nie Geheimnisse ins Repo: keine Lehrer-PIN, keine Passwörter, keinen service_role-Schlüssel. Nur der öffentliche Schlüssel steht in config.js.
 - Keine echten Namen oder neuen personenbezogenen Daten, nur Spitznamen.
