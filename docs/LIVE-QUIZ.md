@@ -55,3 +55,6 @@ Fehlermeldungen des Servers: `NO_PIN` (PIN nicht gesetzt), `BAD_PIN`, `NO_ROOM` 
 
 ## Hinweis für Updates
 GitHub Pages liefert Dateien bis zu 10 Minuten aus dem Browser-Cache. Darum haben die Dateien in `index.html` eine Versionsnummer (`?v=…`). Bei Änderungen an `quiz.js`, `race.js`, `quiz.css` oder `config.js` die Nummer erhöhen, sonst sieht man zeitweise Alt/Neu gemischt (z. B. Namen im Warteraum ohne Kästchen).
+
+## Ergebnis exportieren
+In der Lehreransicht gibt es **„Ergebnis exportieren“**: lädt eine CSV-Datei (Semikolon, für Excel) mit Kopfzeilen (Quiz, Raum, Datum), einer Zeile je Person (Spitzname, richtig, falsch, nicht beantwortet, Bonuspunkte, Punkte gesamt, Prozent, Ergebnis je Frage) und darunter der Trefferquote je Frage. Die Datei entsteht nur im Browser der Lehrkraft und enthält nur Spitznamen. Spitznamen, die mit `=`, `+`, `-` oder `@` beginnen, bekommen ein Hochkomma davor (Schutz vor Excel-Formeln). Der Export zeigt immer die echten Spitznamen, auch wenn „Namen ausblenden“ an ist. Vor dem Löschen des Raums (nach 24 Stunden wird er automatisch gelöscht) exportieren.
