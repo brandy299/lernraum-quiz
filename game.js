@@ -1,7 +1,8 @@
 /* ============================================================
    LERNRAUM · Live-Quiz – Warteraum-Spiel „Hürdenritt“
    Pixel-Spiel auf einem Canvas (240 × 135 Pixel, scharf skaliert): Das Pferd galoppiert von selbst, Tippen = Springen
-   (Halten = höher). Über Hürden, Büsche und Kisten springen, Münzen und Herzen sammeln, 3 Herzen. Das Tempo steigt mit der
+   (Halten = höher). Über Hürden, Büsche und Kisten springen, auf Plattformen (zwei Ebenen) laufen, Abgründe überspringen, Gegnern ausweichen
+   oder von oben auf sie springen (+25), Münzen (Magnet!) und Herzen sammeln, 3 Herzen. Sprünge haben Schwung (je schneller, desto weiter). Das Tempo steigt mit der
    Zeit (wie bei Unicorn Dash), der Himmel wechselt von Tag zu Abend und Nacht. Keine Töne.
    Punkte = Münzen × 10 + Meter. Läuft im Browser; nur der Spielstand (eine Zahl) geht über opts.onScore an den Raum,
    damit die Lehrkraft eine Bestenliste auf dem Beamer zeigen kann. Rekord und Pferdefarbe stehen lokal (localStorage).
@@ -56,7 +57,7 @@
     return `<section class="game" aria-label="Warte-Spiel Hürdenritt">
       <div class="game-hud" aria-live="off"><span class="g-hearts" id="gHearts" aria-label="Leben"></span><span class="g-score">Punkte <b id="gScore">0</b></span><span class="g-best">Rekord <b id="gBest">0</b></span></div>
       <canvas id="gCanvas" class="game-canvas" width="${W * S}" height="${H * S}" role="img" aria-label="Pixel-Pferd, das über Hürden springt. Tippe auf das Bild zum Springen, halte für höhere Sprünge."></canvas>
-      <p class="game-hint" id="gHint">Tippen = springen · halten = höher</p>
+      <p class="game-hint" id="gHint">Tippen = springen · halten = höher · auf Gegner hüpfen</p>
       <div class="game-colors" role="group" aria-label="Pferdefarbe">${COLORS.map((c, i) => `<button type="button" class="gc" data-c="${c}" aria-label="Pferdefarbe ${COLOR_NAMES[i]}" title="${COLOR_NAMES[i]}"><i></i></button>`).join("")}</div>
     </section>`;
   }
@@ -90,6 +91,7 @@
     let t = 0, last = 0, raf = 0, alive = true, rt = 0, speed = SPEED0, dist = 0, nextAt = 150, hearts = 3, coins = 0, score = 0, level = 1, bannerT = 0, bannerTxt = "";
     let world = 0, skyA = WORLDS[0].a, skyB = WORLDS[0].b, portal = 0, sc = 0;
     let hy = 0, vy = 0, onGround = true, holding = false, holdT = 0, stun = 0, buffer = 0, shake = 0, flash = 0, newBest = false, overT = 0, heartAt = 22;
+    let hyPrev = 0, riding = null, falling = false, coyote = 0, hxo = 0, landT = 0, stomps = 0, down = false;
     let things = [], dust = [], pops = [], conf = [], birds = [];
     const clouds = Array.from({ length: 5 }, (_, i) => ({ x: i * 55 + rnd(0, 20), y: rnd(10, 42), w: rnd(22, 38) }));
             const stars = Array.from({ length: 40 }, () => ({ x: rnd(0, W), y: rnd(2, 96), s: Math.random() < .2 ? 2 : 1, ph: rnd(0, 6) }));
@@ -99,33 +101,57 @@
     const setScore = () => { elScore.textContent = score; };
     const reset = () => {
       mode = "run"; rt = 0; world = 0; skyA = WORLDS[0].a; skyB = WORLDS[0].b; speed = SPEED0; dist = 0; nextAt = 160; hearts = 3; coins = 0; score = 0; level = 1; hy = 0; vy = 0; onGround = true; stun = 0; holding = false;
-      newBest = false; heartAt = 22; things = []; pops = []; conf = []; setScore(); drawHearts(); elHint.textContent = "Tippen = springen · halten = höher";
+      newBest = false; heartAt = 22; things = []; pops = []; conf = []; hyPrev = 0; riding = null; falling = false; coyote = 0; hxo = 0; landT = 0; stomps = 0; buffer = 0;
+      setScore(); drawHearts(); elHint.textContent = HINT;
+    };
+    const HINT = "Tippen = springen · halten = höher · auf Gegner hüpfen";
+    const scoreNow = () => coins * 10 + stomps * 25 + Math.floor(dist / 10);
+    const jumpNow = () => {
+      vy = JUMP - Math.max(0, speed - SPEED0) * .25;          /* Schwung: schneller = kräftiger, weiter */
+      onGround = false; riding = null; falling = false; holding = down; holdT = 0; coyote = 0; buffer = 0;
+      for (let i = 0; i < 4; i++) dust.push({ x: HORSE_X + 8, y: GROUND + hy, vx: rnd(-30, -8), vy: rnd(-24, -6), l: .4 });
     };
     const startJump = () => {
       if (mode === "ready" || mode === "over") { if (mode === "over" && overT < .5) return; reset(); return; }
       if (stun > 0) return;
-      if (onGround) { vy = JUMP; onGround = false; holding = true; holdT = 0; for (let i = 0; i < 4; i++) dust.push({ x: HORSE_X + 8, y: GROUND, vx: rnd(-30, -8), vy: rnd(-24, -6), l: .4 }); }
+      if (onGround || coyote > 0 || (falling && hy < 9)) jumpNow();
       else buffer = .12;
     };
 
     /* Hindernisse und Münzen: erst leicht, mit der Zeit mehr Abwechslung. Abstand wächst mit dem Tempo, damit alles schaffbar bleibt. */
     const hurdle = (x) => things.push({ k: "hurdle", x, w: 14, h: 15 });
     const arc = (x, n, hi) => { for (let i = 0; i < n; i++) things.push({ k: "coin", x: x + i * 7, y: GROUND - hi - (i > 0 && i < n - 1 ? 6 : 0), got: false }); };
+    const row = (x, n, y) => { for (let i = 0; i < n; i++) things.push({ k: "coin", x: x + i * 9, y, got: false }); };
+    /* Jedes Muster liefert seine Breite zurück, danach kommt eine Pause (wächst mit dem Tempo). */
     const spawn = () => {
-      const x = W + 20, r = Math.random();
-      let kinds = ["hurdle", "bush", "coins"];
+      const x = W + 20;
+      const kinds = ["hurdle", "bush", "coins"];
+      if (rt > 5) kinds.push("plat");
+      if (rt > 6) kinds.push("pit");
       if (rt > 9) kinds.push("crate");
-      if (rt > 16) kinds.push("fence");
+      if (rt > 10) kinds.push("walker");
+      if (rt > 14) kinds.push("stairs");
+      if (rt > 16) kinds.push("fence", "spiker");
+      if (rt > 18) kinds.push("bridge");
+      if (rt > 20) kinds.push("flyer");
       if (rt > 22 && speed > 105) kinds.push("double");
-      const k = kinds[Math.floor(r * kinds.length)];
-      if (k === "hurdle") { hurdle(x); arc(x + 1, 3, 32); }
+      const k = kinds[Math.floor(Math.random() * kinds.length)];
+      let w = 18;
+      if (k === "hurdle") { hurdle(x); arc(x + 1, 3, 32); w = 14; }
       else if (k === "bush") { things.push({ k: "bush", x, w: 18, h: 12 }); arc(x + 3, 3, 30); }
-      else if (k === "crate") { things.push({ k: "crate", x, w: 16, h: 21 }); arc(x + 2, 3, 40); }
-      else if (k === "fence") { things.push({ k: "fence", x, w: 34, h: 15 }); arc(x + 8, 4, 36); }
-      else if (k === "double") { const gap = 34 + speed * .45; hurdle(x); hurdle(x + 14 + gap); arc(x + 8, 5, 38); }
-      else { const hi = Math.random() < .5 ? 34 : 12; for (let i = 0; i < 5; i++) things.push({ k: "coin", x: x + i * 9, y: GROUND - hi, got: false }); }
-      if (rt > heartAt && hearts < 3) { things.push({ k: "heart", x: x + 70, y: GROUND - 30, got: false }); heartAt = rt + 24; }
-      nextAt = rnd(85, 130) + speed * .6;
+      else if (k === "crate") { things.push({ k: "crate", x, w: 16, h: 21 }); arc(x + 2, 3, 40); w = 16; }
+      else if (k === "fence") { things.push({ k: "fence", x, w: 34, h: 15 }); arc(x + 8, 4, 36); w = 34; }
+      else if (k === "double") { const gap = 34 + speed * .45; hurdle(x); hurdle(x + 14 + gap); arc(x + 8, 5, 38); w = 28 + gap; }
+      else if (k === "plat") { things.push({ k: "plat", x, w: 54, lv: 28 }); row(x + 8, 4, GROUND - 28 - 13); w = 54; }
+      else if (k === "stairs") { things.push({ k: "plat", x, w: 44, lv: 28 }, { k: "plat", x: x + 58, w: 50, lv: 52 }); row(x + 6, 3, GROUND - 28 - 13); row(x + 64, 4, GROUND - 52 - 13); w = 108; }
+      else if (k === "pit") { const pw = Math.round(26 + speed * .1); things.push({ k: "pit", x, w: pw, filled: false }); row(x + pw / 2 - 18, 5, GROUND - 36); w = pw; }
+      else if (k === "bridge") { things.push({ k: "pit", x, w: 88, filled: false }, { k: "plat", x: x + 30, w: 28, lv: 28 }); row(x + 30, 3, GROUND - 28 - 13); w = 88; }
+      else if (k === "walker") { things.push({ k: "walker", x, w: 14, h: 12, v: 26, ph: Math.random() * 6 }); arc(x - 4, 3, 36); w = 14; }
+      else if (k === "spiker") { things.push({ k: "spiker", x, w: 14, h: 11, v: 8, ph: Math.random() * 6 }); arc(x - 4, 3, 34); w = 14; }
+      else if (k === "flyer") { things.push({ k: "flyer", x, w: 14, h: 10, lift: 34, v: 14, ph: Math.random() * 6 }); row(x - 6, 4, GROUND - 9); w = 14; }
+      else { const hi = Math.random() < .5 ? 34 : 12; row(x, 5, GROUND - hi); w = 45; }
+      if (rt > heartAt && hearts < 3) { things.push({ k: "heart", x: x + w + 30, y: GROUND - 30, got: false }); heartAt = rt + 24; }
+      nextAt = w + rnd(75, 120) + speed * .55;
     };
 
     const finish = () => {
@@ -134,6 +160,11 @@
       elHint.textContent = newBest ? `Neuer Rekord: ${score} Punkte! Tippe für noch eine Runde.` : `${score} Punkte. Tippe für noch eine Runde.`;
       if (opts.onScore && score > 0) { try { opts.onScore(score); } catch { /* ignorieren */ } }
     };
+
+    const onPlat = (p) => p.x < HORSE_X + hxo + 28 && p.x + p.w > HORSE_X + hxo + 12;
+    const pitUnder = () => { const cx = HORSE_X + 20; for (const o of things) if (o.k === "pit" && !o.filled && cx > o.x + 3 && cx < o.x + o.w - 3) return o; return null; };
+    const platUnder = () => { for (const o of things) if (o.k === "plat" && onPlat(o) && hyPrev <= -o.lv + 1 && hy >= -o.lv) return o; return null; };
+    const eb = (o) => o.k === "flyer" ? GROUND - o.lift - Math.round(Math.sin(t * 4 + o.ph) * 3) : GROUND;   /* Unterkante eines Gegners */
 
     function update(dt) {
       t += dt;
@@ -149,38 +180,71 @@
         dist += sp * dt;
         nextAt -= sp * dt;
         if (nextAt <= 0) spawn();
-        for (const o of things) o.x -= sp * dt;
-        things = things.filter((o) => o.x > -40);
+        for (const o of things) { o.x -= (sp + (o.v || 0)) * dt; if (o.dead) o.dt -= dt; }
+        things = things.filter((o) => o.x + (o.w || 14) > -20 && !(o.dead && o.dt <= 0));
       }
-      /* Sprung: Halten dehnt den Aufstieg, früh loslassen = normaler Sprung */
-      if (!onGround || hy !== 0) {
-        const g = holding && vy < 0 && holdT < HOLD_MAX ? GRAV * HOLD_G : GRAV;
+      /* Bewegung: Boden, Plattformen (einseitig), Abgründe. Halten dehnt den Aufstieg, am höchsten Punkt „schwebt“ das Pferd kurz. */
+      hyPrev = hy; coyote = Math.max(0, coyote - dt); landT = Math.max(0, landT - dt);
+      const land = (top, p) => {
+        hy = top; vy = 0; holding = false; riding = p || null; onGround = true; landT = .12;
+        for (let i = 0; i < 5; i++) dust.push({ x: HORSE_X + 6, y: GROUND + hy, vx: rnd(-40, -8), vy: rnd(-26, -4), l: .35 });
+        if (buffer > 0 && run) jumpNow();
+      };
+      if (riding) {
+        if (!onPlat(riding)) { riding = null; onGround = false; vy = 0; coyote = .09; holding = false; }
+        else hy = -riding.lv;
+      } else if (onGround && run && pitUnder()) { falling = true; onGround = false; vy = 0; coyote = .09; }
+      if (!onGround) {
+        let g = GRAV;
+        if (holding && vy < 0 && holdT < HOLD_MAX) g = GRAV * HOLD_G;
+        else if (holding && !falling && Math.abs(vy) < 55) g = GRAV * .7;
         holdT += dt; vy += g * dt; hy += vy * dt;
-        if (hy >= 0) {
-          hy = 0; vy = 0; holding = false;
-          if (!onGround) { onGround = true; for (let i = 0; i < 5; i++) dust.push({ x: HORSE_X + 6, y: GROUND, vx: rnd(-40, -8), vy: rnd(-26, -4), l: .35 }); if (buffer > 0 && run) { vy = JUMP; onGround = false; holding = false; } }
+        if (vy >= 0 && !falling) { const p = platUnder(); if (p) land(-p.lv, p); }
+        if (!onGround && !falling && hy >= 0 && vy >= 0) { if (pitUnder()) falling = true; else land(0, null); }
+        if (falling && hy > 36) {
+          hearts--; drawHearts(); flash = 1.2; shake = .25; stun = .5; vy = 0; hy = -44; falling = false; 
+          for (const o of things) if (o.k === "pit" && o.x < HORSE_X + 70 && o.x + o.w > HORSE_X - 30) o.filled = true;   /* Brett drüber, sonst fällt man gleich nochmal */
+          if (hearts <= 0) { score = scoreNow(); setScore(); finish(); }
         }
-      }
+      } else if (!riding) hy = 0;
+      hxo += ((onGround ? 0 : 7) - hxo) * Math.min(1, dt * 9);
       buffer = Math.max(0, buffer - dt);
       stun = Math.max(0, stun - dt); shake = Math.max(0, shake - dt); flash = Math.max(0, flash - dt); bannerT = Math.max(0, bannerT - dt); overT += dt;
-      /* Treffer und Sammelstücke (großzügige Rechtecke) */
+      /* Treffer, Gegner und Sammelstücke (großzügige Rechtecke) */
       if (run) {
-        const hx0 = HORSE_X + 10, hx1 = HORSE_X + 30, hyTop = GROUND - 24 + hy, hyBot = GROUND - 2 + hy;
+        const hx0 = HORSE_X + 10 + hxo, hx1 = HORSE_X + 30 + hxo, hyTop = GROUND - 24 + hy, hyBot = GROUND - 2 + hy, prevBot = GROUND - 2 + hyPrev;
+        const cx = HORSE_X + 20 + hxo, cy = GROUND - 12 + hy;
+        const hurt = (o) => {
+          o.hit = true; hearts--; stun = .9; shake = .25; flash = .9; vy = Math.max(vy, -80); onGround = false; holding = false; riding = null; drawHearts();
+          if (navigator.vibrate) { try { navigator.vibrate(40); } catch { /* ignorieren */ } }
+          if (hearts <= 0) { score = scoreNow(); setScore(); finish(); }
+        };
         for (const o of things) {
+          if (mode !== "run") break;
           if (o.k === "coin" || o.k === "heart") {
-            if (!o.got && o.x + 5 > hx0 && o.x < hx1 && o.y + 5 > hyTop && o.y < hyBot) {
+            if (o.got) continue;
+            const ox = o.x + (o.k === "heart" ? 4.5 : 2.5), oy = o.y + (o.k === "heart" ? 4 : 2.5), d = Math.hypot(cx - ox, cy - oy);
+            if (d < 15) {
               o.got = true;
               if (o.k === "coin") { coins++; pops.push({ x: o.x, y: o.y, l: .6, s: "+10" }); }
               else { hearts = Math.min(3, hearts + 1); drawHearts(); pops.push({ x: o.x, y: o.y, l: .8, s: "♥" }); }
+            } else if (d < 36) {                                   /* Magnet: Münzen in der Nähe fliegen zum Pferd */
+              const m = Math.min(1, 120 * dt / d); o.x += (cx - ox) * m; o.y += (cy - oy) * m;
             }
-          } else if (stun <= 0 && !o.hit && o.x + o.w - 4 > hx0 && o.x + 4 < hx1 && hyBot > GROUND - o.h + 3) {
-            o.hit = true; hearts--; stun = .9; shake = .25; flash = .9; vy = Math.max(vy, -80); onGround = false; holding = false; drawHearts();
-            if (navigator.vibrate) { try { navigator.vibrate(40); } catch { /* ignorieren */ } }
-            if (hearts <= 0) { score = coins * 10 + Math.floor(dist / 10); setScore(); finish(); }
-          }
+          } else if (o.k === "walker" || o.k === "spiker" || o.k === "flyer") {
+            if (o.dead || falling) continue;
+            const yb = eb(o), yt = yb - o.h;
+            if (o.x + o.w - 3 <= hx0 || o.x + 3 >= hx1) continue;
+            if (o.k !== "spiker" && vy > 0 && prevBot <= yt + 6 && hyBot > yt) {      /* von oben draufspringen */
+              o.dead = true; o.dt = .45; stomps++; pops.push({ x: o.x, y: yt - 6, l: .7, s: "+25" });
+              vy = down ? -235 : -185; holding = down; holdT = 0; onGround = false; riding = null; hy = Math.min(hy, yt - GROUND + 2);
+              for (let i = 0; i < 6; i++) dust.push({ x: o.x + 7, y: yb - 2, vx: rnd(-34, 34), vy: rnd(-30, -6), l: .4 });
+            } else if (stun <= 0 && !o.hit && hyBot > yt + 2 && hyTop < yb - 2) hurt(o);
+          } else if (o.k === "pit" || o.k === "plat") { /* eigene Physik oben */ }
+          else if (stun <= 0 && !o.hit && o.x + o.w - 4 > hx0 && o.x + 4 < hx1 && hyBot > GROUND - o.h + 3) hurt(o);
         }
         things = things.filter((o) => !((o.k === "coin" || o.k === "heart") && o.got));
-        if (mode === "run") { score = coins * 10 + Math.floor(dist / 10); setScore(); }
+        if (mode === "run") { score = scoreNow(); setScore(); }
       }
       if (run && onGround && stun <= 0 && Math.random() < dt * 14) dust.push({ x: HORSE_X + 4, y: GROUND, vx: rnd(-40, -14), vy: rnd(-10, -2), l: .3 });
       for (const d of dust) { d.x += d.vx * dt; d.y += d.vy * dt; d.l -= dt; }
@@ -209,8 +273,58 @@
     const win = (x, y, w, h, base, lit, n, th) => {   /* Fenster-Raster eines Hauses */
       for (let yy = y + 2.5; yy < y + h - 3; yy += 4.5) for (let xx = x + 2.5; xx < x + w - 3; xx += 3.5) { const on = hash(n * 31 + xx * 3.1 + yy * 7.7) > th; px(on ? lit : base, xx, yy, 1.5, 2.5); }
     };
+    const OUT = () => world >= 2 ? "#FFFFFF" : "#1E1E1E";
+    const WK = [["#C1354F", "#F2DDB6"], ["#8E9BB1", "#FF4D4D"], ["#FF2BD6", "#00E5FF"], ["#58B368", "#E9F4FF"]];
+    const SP = [["#8A5A26", "#F2DDB6"], ["#7A8190", "#E9E9E9"], ["#2B0F55", "#FF2BD6"], ["#6B7085", "#C9CDE0"]];
+    const FL = [["#FFD84D", "#1E1E1E"], ["#9AA6B8", "#FF4D4D"], ["#00E5FF", "#FF2BD6"], ["#58B368", "#E9F4FF"]];
+    function drawEnemy(o, x) {
+      const f = Math.floor(t * 8 + o.ph * 3) % 2, yb = eb(o), OL = OUT();
+      if (o.dead) { const c = (o.k === "walker" ? WK : o.k === "spiker" ? SP : FL)[world][0]; px(OL, x, yb - 4, 14, 4); px(c, x + 1, yb - 3, 12, 2); return; }
+      if (o.k === "walker") {                              /* Pilz / Roboter / Neon-Käfer / Alien */
+        const [b, a] = WK[world];
+        px(OL, x, yb - 10, 14, 9); px(OL, x + 2, yb - 12, 10, 2); px(b, x + 1, yb - 9, 12, 7); px(b, x + 3, yb - 11, 8, 2);
+        if (world === 0) { px(a, x + 3, yb - 10, 2, 2); px(a, x + 9, yb - 10, 2, 2); }
+        else { px(OL, x + 6, yb - 15, 2, 4); px(a, x + 5, yb - 16, 4, 2); }
+        px("#fff", x + 3, yb - 8, 3, 3); px("#fff", x + 8, yb - 8, 3, 3); px("#1E1E1E", x + 4, yb - 7, 2, 2); px("#1E1E1E", x + 8, yb - 7, 2, 2);
+        px(OL, x + (f ? 1 : 3), yb - 2, 4, 2); px(OL, x + (f ? 9 : 7), yb - 2, 4, 2);
+      } else if (o.k === "spiker") {                       /* Igel / Stachelkugel / Mine / Asteroid: nicht draufspringen! */
+        const [b, a] = SP[world], p = f ? 0 : 1;
+        px(OL, x, yb - 9, 14, 9); px(b, x + 1, yb - 8, 12, 7);
+        for (let i = 0; i < 4; i++) { px(OL, x + 1 + i * 3.5, yb - 12 - p, 2, 3); px(a, x + 1.5 + i * 3.5, yb - 11 - p, 1, 2); }
+        px(a, x - 2 - p, yb - 6, 2, 2); px("#fff", x + 8, yb - 6, 3, 3); px("#E8334F", x + 9, yb - 5, 2, 2);
+      } else {                                             /* Biene / Drohne / Cyber-Drohne / UFO */
+        const [b, a] = FL[world];
+        px(OL, x + 2, yb - 8, 10, 8); px(b, x + 3, yb - 7, 8, 6); px(a, x + 5, yb - 7, 2, 6); px(a, x + 9, yb - 7, 2, 6);
+        if (world === 3) { px(OL, x + 4, yb - 12, 6, 4); px("#9BE3FF", x + 5, yb - 11, 4, 3); }
+        else if (f) { px("#E9F4FF", x + 3, yb - 13, 3, 5); px("#E9F4FF", x + 8, yb - 13, 3, 5); }
+        else { px("#E9F4FF", x + 1, yb - 10, 4, 2); px("#E9F4FF", x + 9, yb - 10, 4, 2); }
+        px("#fff", x + 1, yb - 5, 2, 2); px("#1E1E1E", x + 1, yb - 4, 1, 1);
+      }
+    }
+    function drawPit(o) {
+      const x = Math.round(o.x), w = Math.round(o.w), W_ = WORLDS[world], dh = H - GROUND;
+      if (o.filled) {                                       /* Brett über dem Abgrund */
+        px(OUT(), x - 1, GROUND - 1, w + 2, 5); px("#C48A4A", x, GROUND, w, 3);
+        for (let i = 3; i < w; i += 6) px("#8A5A26", x + i, GROUND, 1, 3);
+        return;
+      }
+      px(["#2A1A10", "#14161C", "#05010F", "#000000"][world], x, GROUND, w, dh);
+      px("#1E1E1E", x - 1, GROUND, 1, dh); px("#1E1E1E", x + w, GROUND, 1, dh);
+      if (world === 0) { px("#3A2616", x, GROUND + 14, w, dh); for (let i = 0; i < w; i += 7) px("#4A3220", x + i, GROUND + 6 + (i % 3) * 4, 4, 2); }
+      else if (world === 1) { for (let i = 0; i < w; i += 6) { px("#FFD84D", x + i, GROUND - 1, 3, 1); px("#FFD84D", x + i, GROUND + 5, 3, 1); } px("#2B3140", x, GROUND + 24, w, dh); }
+      else if (world === 2) { px("#00E5FF", x, GROUND, 1, dh); px("#00E5FF", x + w - 1, GROUND, 1, dh); for (let i = 1; i < 6; i++) px("#FF2BD6", x, GROUND + i * i * 1.2, w, 1); }
+      else { for (let i = 0; i < 6; i++) px("#FFF8D6", x + (i * 11 + 3) % w, GROUND + 6 + (i * 13) % (dh - 8), 1, 1); circle(x + w / 2, GROUND + 26, 4, "#2A1B5C"); }
+    }
     function drawThing(o) {
       const x = Math.round(o.x), W_ = WORLDS[world];
+      if (o.k === "pit") return;
+      if (o.k === "walker" || o.k === "spiker" || o.k === "flyer") { drawEnemy(o, x); return; }
+      if (o.k === "plat") {                                  /* Plattform: Holzbrett / Träger / Neon / Schwebefels */
+        const y = GROUND - o.lv, TOP = ["#5CC183", "#FFD84D", "#00E5FF", "#C9CDE0"][world], BODY = ["#C48A4A", "#5B6577", "#14062E", "#7C8199"][world];
+        px(OUT(), x - 1, y - 1, o.w + 2, 8); px(BODY, x, y + 1, o.w, 5); px(TOP, x, y, o.w, 2);
+        for (let i = 5; i < o.w - 3; i += 8) px(mix(BODY, "#000000", .35), x + i, y + 2, 1, 4);
+        return;
+      }
       if (o.k === "hurdle") {
         px(W_.post, x, GROUND - 15, 2, 15); px(W_.post, x + 12, GROUND - 15, 2, 15);
         px(W_.rail1, x, GROUND - 14, 14, 3); px(W_.rail2, x + 3, GROUND - 14, 4, 3); px(W_.rail2, x + 10, GROUND - 14, 4, 3);
@@ -319,6 +433,7 @@
       px(skyA, -4, 0, W + 8, 60); px(skyB, -4, 60, W + 8, 60);
       drawWorld(world);
       drawGround(world);
+      for (const o of things) if (o.k === "pit" && o.x < W + 4) drawPit(o);
       for (const o of things) if (o.x < W + 4) drawThing(o);
       /* Tempolinien */
       if (mode === "run" && speed > 140) for (let i = 0; i < 5; i++) { const y = 20 + ((i * 37 + Math.floor(t * 9) * 13) % 80), x = ((i * 91 - t * speed * 1.4) % W + W) % W; px("rgba(255,255,255,.5)", x, y, 14 + (speed - 140) / 4, 1); }
@@ -326,8 +441,12 @@
       /* Pferd */
       const frame = (!onGround || mode !== "run") ? 0 : (Math.floor(t * (6 + speed / 28)) % 2);
       const blink = flash > 0 && Math.floor(t * 18) % 2 === 0;
-      if (hs && !blink) ctx.drawImage(hs[frame], HORSE_X, hp(GROUND - 27 + hy), 36, 28);
-      px("rgba(30,30,30,.25)", HORSE_X + 6, GROUND + 1, Math.max(8, 24 + Math.round(hy / 4)), 2);
+      if (hs && !blink) {
+        const ang = onGround ? 0 : Math.max(-.13, Math.min(.2, vy / 1100)), sq = landT > 0 ? 1 - landT * 1.2 : 1;
+        ctx.save(); ctx.translate(HORSE_X + hxo + 18, hp(GROUND - 27 + hy) + 28); ctx.rotate(ang); ctx.scale(1 + (1 - sq) * .5, sq);
+        ctx.drawImage(hs[frame], -18, -28, 36, 28); ctx.restore();
+      }
+      if (!falling) px("rgba(30,30,30,.25)", HORSE_X + 6 + hxo / 2, GROUND + 1, Math.max(8, 24 + Math.round(Math.min(0, hy) / 4)), 2);
       ctx.font = "bold 8px monospace"; ctx.textBaseline = "top";
       for (const p of pops) { ctx.fillStyle = "#1E1E1E"; ctx.fillText(p.s, Math.round(p.x) + 1, Math.round(p.y) + 1); ctx.fillStyle = p.s === "♥" ? "#FF6B81" : "#FFD84D"; ctx.fillText(p.s, Math.round(p.x), Math.round(p.y)); }
       /* Weltwechsel: kurzer Blitz */
@@ -342,7 +461,7 @@
         ctx.fillText(mode === "ready" ? "HÜRDENRITT" : newBest ? "NEUER REKORD!" : "ABGEWORFEN!", W / 2, 42);
         ctx.font = "bold 8px monospace";
         ctx.fillText(mode === "ready" ? "Tippen = Start und Sprung" : `${score} Punkte · Rekord ${best}`, W / 2, 58);
-        ctx.fillText(mode === "ready" ? "Halten = höher · 4 Welten" : "tippen = nochmal", W / 2, 68);
+        ctx.fillText(mode === "ready" ? "Auf Gegner springen · 4 Welten" : "tippen = nochmal", W / 2, 68);
         ctx.textAlign = "left";
       }
       ctx.restore();
@@ -355,10 +474,10 @@
       update(dt); draw();
       raf = requestAnimationFrame(frameLoop);
     }
-    const onDown = (e) => { e.preventDefault(); startJump(); };
-    const onUp = () => { holding = false; };
-    const onKey = (e) => { if ((e.code === "Space" || e.code === "ArrowUp") && cv.isConnected && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target || {}).tagName || "")) { e.preventDefault(); if (!e.repeat) startJump(); } };
-    const onKeyUp = (e) => { if (e.code === "Space" || e.code === "ArrowUp") holding = false; };
+    const onDown = (e) => { e.preventDefault(); down = true; startJump(); };
+    const onUp = () => { holding = false; down = false; };
+    const onKey = (e) => { if ((e.code === "Space" || e.code === "ArrowUp") && cv.isConnected && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target || {}).tagName || "")) { e.preventDefault(); if (!e.repeat) { down = true; startJump(); } } };
+    const onKeyUp = (e) => { if (e.code === "Space" || e.code === "ArrowUp") { holding = false; down = false; } };
     cv.addEventListener("pointerdown", onDown);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
