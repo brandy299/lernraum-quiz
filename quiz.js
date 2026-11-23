@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "15";
+  const CSS_NEED = "16";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -366,15 +366,51 @@
         <p style="margin-top:16px"><button class="btn block" id="bk">Zurück</button></p>`);
       root.querySelector("#bk").onclick = () => { cur = null; render(); };
     }
+    /* Persönlicher Lernzettel: was war falsch oder offen, mit richtiger Antwort, Erklärung und Thema */
+    function missed() {
+      return state.questions.map((q, i) => ({ q, x: state.answers[i], i })).filter((m) => !m.x || !m.x.ok);
+    }
+    const rightText = (m) => (m.x ? (m.q.t === "text" ? [].concat(m.x.a).join(" / ") : m.q.o[Number(m.x.a)]) : "");
+    function learnHtml() {
+      const all = missed(), ms = all.filter((m) => m.x), open = all.filter((m) => !m.x);
+      const openHtml = open.length ? `<details class="add" style="margin-top:12px"><summary>${open.length} Frage${open.length > 1 ? "n" : ""} nicht beantwortet</summary><div class="in"><ul class="review">${open.map((m) => `<li><b>–</b><span>${esc(m.q.q)}</span></li>`).join("")}</ul></div></details>` : "";
+      if (!ms.length && open.length) return `<div class="learn"><h3 class="section-head">Zum Wiederholen</h3><p class="sub">Alles Beantwortete war richtig.</p>${openHtml}</div>`;
+      if (!ms.length) return `<div class="learn ok"><h3 class="section-head">Zum Wiederholen</h3><p class="sub">Alles richtig. Da gibt es nichts nachzulernen.</p></div>`;
+      const groups = new Map();
+      ms.forEach((m) => { const k = m.q.s || ""; if (!groups.has(k)) groups.set(k, { u: m.q.u || "", items: [] }); groups.get(k).items.push(m); });
+      return `<div class="learn"><h3 class="section-head">Das solltest du wiederholen</h3>
+        ${[...groups].map(([k, g]) => `<div class="lg">${k ? `<p class="lt">${esc(k)}${/^https:\/\//.test(g.u) ? ` · <a href="${esc(g.u)}" target="_blank" rel="noopener">im Lernraum üben</a>` : ""}</p>` : ""}
+          <ul class="review">${g.items.map((m) => `<li class="no"><b>${m.x ? "✗" : "–"}</b><span>${esc(m.q.q)}${m.x ? `<br><span class="hint">Richtig: ${esc(rightText(m))}</span>${m.x.e ? `<br><span class="hint">${esc(m.x.e)}</span>` : ""}` : `<br><span class="hint">Nicht beantwortet</span>`}</span></li>`).join("")}</ul></div>`).join("")}
+        ${openHtml}<button class="btn pink block" id="bSave" type="button" style="margin-top:12px">Lernzettel speichern</button>
+        <p class="hint" style="margin:6px 0 0">Der Raum wird nach 24 Stunden gelöscht. Speichere dir den Lernzettel, dann kannst du später nachlernen. Er bleibt nur auf deinem Gerät.</p></div>`;
+    }
+    async function saveLearn() {
+      const wrong = missed().filter((m) => m.x), open = missed().filter((m) => !m.x);
+      const lines = [`Lernzettel · ${state.title}`, `Falsch: ${wrong.length} · nicht beantwortet: ${open.length} · gesamt: ${total()} Fragen`, ""];
+      wrong.forEach((m, k) => {
+        lines.push(`${k + 1}. ${m.q.q}`);
+        if (m.x) { lines.push(`   Richtig: ${rightText(m)}`); if (m.x.e) lines.push(`   Merke: ${m.x.e}`); } else lines.push("   (nicht beantwortet)");
+        if (m.q.s) lines.push(`   Thema: ${m.q.s}${m.q.u ? " · " + m.q.u : ""}`);
+        lines.push("");
+      });
+      if (open.length) { lines.push("Nicht beantwortet:"); open.forEach((m) => lines.push(`- ${m.q.q}${m.q.s ? " (" + m.q.s + ")" : ""}`)); }
+      const text = lines.join("\n");
+      try { if (navigator.share) { await navigator.share({ title: `Lernzettel ${state.title}`, text }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" })); a.download = "lernzettel.txt";
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
     function renderEnd() {
       const s = ownScore();
       show(`${head}<div class="win"><div class="bar"><span class="d"></span><span class="id">QUIZ BEENDET</span></div>
         <div class="body"><p class="kick">${esc(state.title)}</p><p class="score">${s.ok}<span style="font-size:.5em;color:var(--ink-2)"> / ${s.n}</span></p>
         <p class="sub" style="margin-top:10px">${s.b ? `+ ${s.b} Bonuspunkt${s.b > 1 ? "e" : ""} durch den Aufholbonus. ` : ""}${answeredN() < s.n ? `Du hast ${answeredN()} von ${s.n} Fragen beantwortet.` : "Gut gemacht."}</p></div></div>
+        ${learnHtml()}
         <h3 class="section-head">Alle Fragen</h3>
         <ul class="review">${state.questions.map((q, i) => { const x = state.answers[i];
           return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(q.t === "text" ? x.a : q.o[Number(x.a)])}</span>` : ""}${x && x.e ? `<br><span class="hint">${esc(x.e)}</span>` : ""}</span></li>`; }).join("")}</ul>
         <p style="margin-top:20px"><button class="btn ghost block" id="leave">Raum verlassen</button></p>`);
+      const sv = root.querySelector("#bSave");
+      if (sv) sv.onclick = saveLearn;
       root.querySelector("#leave").onclick = () => { store.del(`quiz.player.${code}`); location.hash = "#/"; };
     }
     render();
@@ -431,7 +467,7 @@
         const qs = [];
         for (const st of t.steps || []) if (st.type === "quiz") for (const q of st.questions || []) {
           if (!q.options || q.options.length < 2 || q.options.length > 4) continue;
-          qs.push({ t: "mc", q: plain(q.q), o: q.options.map(plain), a: q.answer, e: q.explain ? plain(q.explain) : "" });
+          qs.push({ t: "mc", q: plain(q.q), o: q.options.map(plain), a: q.answer, e: q.explain ? plain(q.explain) : "", s: `${s.name} · ${t.title}`.slice(0, 120), u: s.id ? `${COURSE_BASE}#/f/${encodeURIComponent(s.id)}` : "" });
         }
         if (qs.length) topics.push({ title: t.title, qs });
       }
@@ -473,8 +509,10 @@
       j.forEach((x, i) => {
         const q = String(x.q ?? x.frage ?? "").trim(), e = String(x.e ?? x.explain ?? x.erklaerung ?? "").trim();
         const o = x.o ?? x.options ?? x.antworten, a = x.a ?? x.answer ?? x.richtig;
-        if (Array.isArray(o)) add({ t: "mc", q, o: o.map((v) => String(v).trim()), a: Number(a), e }, e, i + 1);
-        else add({ t: "text", q, a: [].concat(a ?? []).map((v) => String(v).trim()).filter(Boolean), e }, e, i + 1);
+        const src = String(x.s ?? x.thema ?? "").trim().slice(0, 120), url = /^https:\/\//.test(String(x.u ?? "")) ? String(x.u).slice(0, 300) : "";
+        const meta = src ? (url ? { s: src, u: url } : { s: src }) : {};
+        if (Array.isArray(o)) add({ t: "mc", q, o: o.map((v) => String(v).trim()), a: Number(a), e, ...meta }, e, i + 1);
+        else add({ t: "text", q, a: [].concat(a ?? []).map((v) => String(v).trim()).filter(Boolean), e, ...meta }, e, i + 1);
       });
     } else {
       let rows = parseCsv(txt);
@@ -533,6 +571,31 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     { t: "mc", q: "In welchem Jahr wurde Deutschland wiedervereinigt?", o: ["1989", "1990", "1991", "1995"], a: 1, e: "Die Mauer fiel am 9. November 1989, die Einheit folgte am 3. Oktober 1990." }
   ];
 
+  /* Antwortreihenfolge mischen, damit die richtige Antwort nicht immer an derselben Stelle steht.
+     Richtig/Falsch, Kurzantworten und Fragen mit „alle/keine …“ bleiben unverändert, reine Zahlen werden aufsteigend sortiert. */
+  const rndInt = (n) => { const a = new Uint32Array(1); (window.crypto || { getRandomValues: (x) => { x[0] = Math.random() * 4294967296; } }).getRandomValues(a); return a[0] % n; };
+  function shuffleQs(qs) {
+    let last = -1, streak = 0;
+    return qs.map((q) => {
+      if (q.t === "text" || !Array.isArray(q.o) || q.o.length < 3) { last = -1; streak = 0; return q; }
+      if (q.o.some((o) => /^\s*(alle|keine|beide|keiner)\b|\b(alle|keine) (genannten|oben|der)\b/i.test(o))) return q;
+      const right = q.o[q.a], num = (o) => parseFloat(String(o).replace(/\./g, "").replace(",", "."));
+      let o;
+      if (q.o.every((x) => /^\s*-?[\d.,]+/.test(x) && !isNaN(num(x)))) o = [...q.o].sort((x, y) => num(x) - num(y));
+      else {
+        let tries = 0;
+        do {
+          o = [...q.o];
+          for (let i = o.length - 1; i > 0; i--) { const j = rndInt(i + 1); [o[i], o[j]] = [o[j], o[i]]; }
+          tries++;
+        } while (tries < 8 && o.indexOf(right) === last && streak >= 1);
+      }
+      const a = o.indexOf(right);
+      streak = a === last ? streak + 1 : 0; last = a;
+      return { ...q, o, a };
+    });
+  }
+
   function viewSetup() {
     let draft = store.get("quiz.draft", { title: "", qs: [] });
     const save = () => store.set("quiz.draft", draft);
@@ -550,6 +613,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         <details class="add" id="dKi"><summary>Anleitung: Quiz mit KI erstellen</summary><div class="in" id="kiBox"></div></details>
         <details class="add" id="dFile"><summary>Quiz aus Datei laden</summary><div class="in" id="fileBox"></div></details>
         <details class="add" id="dOwn"><summary>Eigene Frage schreiben</summary><div class="in" id="ownBox"></div></details>
+        <label class="check"><input type="checkbox" id="shuf" ${store.get("quiz.shuffle", true) ? "checked" : ""}><span>Antworten mischen (die richtige Antwort steht nicht immer an derselben Stelle)</span></label>
         <div id="err"></div>
         <button class="btn pink block" id="go">Raum öffnen</button>
       </div>`);
@@ -684,7 +748,8 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       this.disabled = true;
       const secret = rid(16);
       try {
-        const code = await rpc("quiz_create", { p_pin: pinV, p_title: draft.title.trim() || "Quiz", p_questions: draft.qs, p_secret: secret });
+        const shuf = el.querySelector("#shuf").checked; store.set("quiz.shuffle", shuf);
+        const code = await rpc("quiz_create", { p_pin: pinV, p_title: draft.title.trim() || "Quiz", p_questions: shuf ? shuffleQs(draft.qs) : draft.qs, p_secret: secret });
         await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "lobby" });
         if (LIVE) store.set("quiz.pin", pinV);
         store.set(`quiz.teacher.${code}`, secret);
