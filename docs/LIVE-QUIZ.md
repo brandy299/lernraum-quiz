@@ -69,3 +69,8 @@ Im Warteraum sehen Schüler/innen unter dem Wartetext ein kleines Pixel-Spiel (`
 
 ## Demo-Quiz
 Im Setup gibt es den Knopf „Demo-Quiz laden: Deutsche Geschichte (10 Fragen)“ zum schnellen Ausprobieren (`DEMO_QS` in `quiz.js`).
+
+## Antworten mischen und Lernzettel
+- Beim Anlegen des Raums gibt es das Häkchen „Antworten mischen“ (Standard an, wird gemerkt). Die Reihenfolge der Antworten wird beim Öffnen des Raums gemischt, damit die richtige nicht immer an derselben Stelle steht. Ausnahmen: Richtig/Falsch, Kurzantworten, Fragen mit „alle/keine …“ und reine Zahlen (aufsteigend sortiert).
+- Am Ende sehen Schüler/innen „Das solltest du wiederholen“: falsch beantwortete Fragen mit richtiger Antwort, Erklärung und Thema (bei Kursfragen mit Link in den Lernraum) und den Knopf „Lernzettel speichern“ (Teilen-Menü oder .txt-Datei). Der Lernzettel entsteht nur im Browser der Person, es wird nichts gespeichert.
+- Fragen können optional `s` (Thema) und `u` (https-Link) haben, im JSON auch `thema`.
