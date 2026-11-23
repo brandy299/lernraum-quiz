@@ -1,0 +1,401 @@
+{
+ "title": "Sechseck und Sozialpolitik (HHOF/KAOA)",
+ "questions": [
+  {
+   "q": "Wie viele Ziele hat das magische Sechseck?",
+   "o": [
+    "4",
+    "5",
+    "8",
+    "6"
+   ],
+   "a": 3,
+   "e": "Sechs Ziele: Vollbeschäftigung, Preisstabilität, außenwirtschaftliches Gleichgewicht, Wachstum, Umwelt- und Klimaschutz, gerechte Verteilung."
+  },
+  {
+   "q": "Warum heißt das Sechseck „magisch“?",
+   "o": [
+    "Weil nie alle sechs Ziele gleichzeitig optimal erreicht werden.",
+    "Weil die Ziele nicht messbar sind.",
+    "Weil es nur vier Ziele gibt.",
+    "Weil alle Ziele leicht zu erreichen sind."
+   ],
+   "a": 0,
+   "e": "Die Politik muss deshalb immer wieder abwägen."
+  },
+  {
+   "q": "Welches Ziel gehört NICHT zum magischen Sechseck?",
+   "o": [
+    "Preisstabilität",
+    "Gewinnmaximierung der Firmen",
+    "Vollbeschäftigung",
+    "Umwelt- und Klimaschutz"
+   ],
+   "a": 1,
+   "e": "Gewinnmaximierung ist ein Ziel von Unternehmen, kein Ziel der Wirtschaftspolitik."
+  },
+  {
+   "q": "Mia sucht eine Ausbildungsstelle und findet keine. Welches Ziel ist betroffen?",
+   "o": [
+    "Preisstabilität",
+    "Umwelt- und Klimaschutz",
+    "Vollbeschäftigung",
+    "Wirtschaftswachstum"
+   ],
+   "a": 2,
+   "e": "Vollbeschäftigung heißt: Wer arbeiten will, findet eine Stelle."
+  },
+  {
+   "q": "Der Wocheneinkauf wird immer teurer. Welches Ziel ist betroffen?",
+   "o": [
+    "Vollbeschäftigung",
+    "Gerechte Verteilung",
+    "Preisstabilität",
+    "Außenwirtschaftliches Gleichgewicht"
+   ],
+   "a": 2,
+   "e": "Steigende Preise = Inflation. Das Ziel Preisstabilität ist in Gefahr."
+  },
+  {
+   "q": "Mit welcher Kennzahl misst man die Preisstabilität?",
+   "o": [
+    "Arbeitslosenquote",
+    "Gini-Wert",
+    "CO₂-Ausstoß",
+    "Inflationsrate"
+   ],
+   "a": 3,
+   "e": "Preisstabilität → Inflationsrate."
+  },
+  {
+   "q": "Wie hoch soll die Inflation laut EZB etwa sein?",
+   "o": [
+    "etwa 2 %",
+    "0 %",
+    "etwa 10 %",
+    "so hoch wie möglich"
+   ],
+   "a": 0,
+   "e": "Die Europäische Zentralbank strebt etwa 2 % an."
+  },
+  {
+   "q": "Was misst der Gini-Wert?",
+   "o": [
+    "Die Arbeitslosigkeit",
+    "Die Ungleichheit bei Einkommen und Vermögen",
+    "Die Preissteigerung",
+    "Den Export"
+   ],
+   "a": 1,
+   "e": "0 = alle haben gleich viel, 1 = einer hat alles. Je kleiner, desto gerechter."
+  },
+  {
+   "q": "Der Außenhandelssaldo ist …",
+   "o": [
+    "Export + Import",
+    "Import − Export · 100",
+    "Export : Import",
+    "Export − Import"
+   ],
+   "a": 3,
+   "e": "Außenhandelssaldo = Exporte − Importe. Bei etwa 0 halten sich beide die Waage."
+  },
+  {
+   "q": "Die Preise einer Ware steigen von 200 € auf 210 €. Wie viel Prozent ist das?",
+   "o": [
+    "5 %",
+    "2 %",
+    "10 %",
+    "21 %"
+   ],
+   "a": 0,
+   "e": "(210 − 200) : 200 · 100 = 5 %."
+  },
+  {
+   "q": "Was ist eine Zielharmonie?",
+   "o": [
+    "Ein Ziel wird besser, ein anderes schlechter.",
+    "Zwei Ziele werden gleichzeitig besser.",
+    "Alle sechs Ziele sind erreicht.",
+    "Ein Ziel wird nicht gemessen."
+   ],
+   "a": 1,
+   "e": "Bei einer Harmonie hilft eine Maßnahme zwei Zielen gleichzeitig."
+  },
+  {
+   "q": "Ein Solarpark schafft Jobs und senkt den CO₂-Ausstoß. Was ist das?",
+   "o": [
+    "Zielkonflikt",
+    "Preissteigerung",
+    "Zielharmonie",
+    "Steuer"
+   ],
+   "a": 2,
+   "e": "Vollbeschäftigung und Klimaschutz werden gleichzeitig besser."
+  },
+  {
+   "q": "Eine neue Autobahn schafft Jobs, aber mehr Abgase. Was ist das?",
+   "o": [
+    "Zielharmonie",
+    "Beitrag",
+    "Zielkonflikt",
+    "Umverteilung"
+   ],
+   "a": 2,
+   "e": "Ein Ziel wird besser (Jobs), ein anderes schlechter (Klima)."
+  },
+  {
+   "q": "Wie viele Ziele stehen im Stabilitätsgesetz von 1967?",
+   "o": [
+    "zwei",
+    "sechs",
+    "acht",
+    "vier"
+   ],
+   "a": 3,
+   "e": "Vier Ziele (magisches Viereck). Verteilung und Umwelt kamen später dazu."
+  },
+  {
+   "q": "Was ist das Bruttoentgelt?",
+   "o": [
+    "Der Lohn vor allen Abzügen",
+    "Der Lohn nach allen Abzügen",
+    "Nur die Lohnsteuer",
+    "Nur die Sozialversicherung"
+   ],
+   "a": 0,
+   "e": "Brutto = vor Abzügen. Netto = was übrig bleibt."
+  },
+  {
+   "q": "Wie berechnet man die Abgabenquote?",
+   "o": [
+    "Netto : Brutto · 100",
+    "Alle Abzüge : Brutto · 100",
+    "Brutto : Netto · 100",
+    "Lohnsteuer : Netto · 100"
+   ],
+   "a": 1,
+   "e": "Abgabenquote = alle Abzüge : Bruttoentgelt · 100."
+  },
+  {
+   "q": "Lena verdient 3.000 € brutto. Ihre Abzüge sind zusammen 961,50 €. Wie hoch ist ihr Netto?",
+   "o": [
+    "2.350,00 €",
+    "1.961,50 €",
+    "3.961,50 €",
+    "2.038,50 €"
+   ],
+   "a": 3,
+   "e": "3.000,00 − 961,50 = 2.038,50 €."
+  },
+  {
+   "q": "Lenas Abzüge: 961,50 € von 3.000 € Brutto. Wie hoch ist die Abgabenquote?",
+   "o": [
+    "32,05 %",
+    "10,5 %",
+    "21,55 %",
+    "67,2 %"
+   ],
+   "a": 0,
+   "e": "961,50 : 3.000 · 100 = 32,05 %."
+  },
+  {
+   "q": "Was ist eine Steuer?",
+   "o": [
+    "Eine Zahlung, die einen Anspruch auf Rente begründet",
+    "Eine Zahlung ohne direkten Anspruch auf Gegenleistung",
+    "Eine Spende",
+    "Ein Zuschlag für Überstunden"
+   ],
+   "a": 1,
+   "e": "Aus Steuern bezahlt der Staat z. B. Schulen, Straßen und Polizei."
+  },
+  {
+   "q": "Welche Zahlung begründet einen Anspruch?",
+   "o": [
+    "Lohnsteuer",
+    "Mehrwertsteuer",
+    "Beitrag zur Krankenversicherung",
+    "Gewerbesteuer"
+   ],
+   "a": 2,
+   "e": "Beiträge zur Sozialversicherung begründen Ansprüche."
+  },
+  {
+   "q": "Wohngeld ist eine …",
+   "o": [
+    "Steuer",
+    "Versicherungsbeitrag",
+    "Transferleistung",
+    "Gebühr"
+   ],
+   "a": 2,
+   "e": "Transferleistungen zahlt der Staat an Menschen, z. B. Wohngeld, Kindergeld, Grundsicherung."
+  },
+  {
+   "q": "Was gehört zur sozialen Sicherheit?",
+   "o": [
+    "Möglichst viele Exporte",
+    "Niedrige Inflation",
+    "Weniger CO₂",
+    "Schutz vor Krankheit, Alter und Arbeitslosigkeit"
+   ],
+   "a": 3,
+   "e": "Soziale Sicherheit schützt vor Lebensrisiken."
+  },
+  {
+   "q": "Was heißt Umverteilung?",
+   "o": [
+    "Ausgleich über Steuern, Beiträge und Transferleistungen",
+    "Der Staat druckt mehr Geld",
+    "Firmen teilen ihren Gewinn",
+    "Alle bekommen gleich viel Lohn"
+   ],
+   "a": 0,
+   "e": "Umverteilung gleicht Einkommen zwischen hohen und niedrigen Einkommen aus."
+  },
+  {
+   "q": "Was ist die sekundäre Verteilung?",
+   "o": [
+    "Einkommen aus Arbeit und Kapital am Markt",
+    "Einkommen nach Steuern, Beiträgen und Transfers",
+    "Nur das Vermögen",
+    "Nur der Lohn"
+   ],
+   "a": 1,
+   "e": "Primär = am Markt. Sekundär = nach Umverteilung durch den Staat."
+  },
+  {
+   "q": "Mehr Rente nach 40 Beitragsjahren als nach 20 Jahren. Welches Leitbild ist das?",
+   "o": [
+    "Bedürfnisprinzip",
+    "Gleichheitsprinzip",
+    "Zufallsprinzip",
+    "Leistungsprinzip"
+   ],
+   "a": 3,
+   "e": "Wer mehr einzahlt, bekommt mehr."
+  },
+  {
+   "q": "Wohngeld bekommt, wer wenig verdient und hohe Miete zahlt. Welches Leitbild ist das?",
+   "o": [
+    "Bedürfnisprinzip",
+    "Leistungsprinzip",
+    "Gleichheitsprinzip",
+    "Marktprinzip"
+   ],
+   "a": 0,
+   "e": "Es zählt, was jemand braucht."
+  },
+  {
+   "q": "Alle Familien bekommen für jedes Kind gleich viel Kindergeld. Welches Leitbild ist das?",
+   "o": [
+    "Leistungsprinzip",
+    "Gleichheitsprinzip",
+    "Bedürfnisprinzip",
+    "Versicherungsprinzip"
+   ],
+   "a": 1,
+   "e": "Alle bekommen denselben Betrag."
+  },
+  {
+   "q": "Was prüft der Staat bei einer Bedürftigkeitsprüfung?",
+   "o": [
+    "Wie viel jemand leistet",
+    "Wie alt jemand ist",
+    "Ob jemand wirklich Unterstützung braucht",
+    "Wie hoch die Steuern sind"
+   ],
+   "a": 2,
+   "e": "Nur wer wirklich Hilfe braucht, bekommt sie."
+  },
+  {
+   "q": "Sicherheit und Gerechtigkeit können sich widersprechen. Was muss die Politik dann tun?",
+   "o": [
+    "Alles ignorieren",
+    "Alle Beiträge abschaffen",
+    "Abwägen",
+    "Nur ein Ziel verfolgen"
+   ],
+   "a": 2,
+   "e": "Mehr Schutz kostet Beiträge. Mehr Umverteilung kann Leistungsanreize schwächen."
+  },
+  {
+   "q": "Position B sagt: „Wer mehr leistet, soll mehr behalten.“ Welches Leitbild passt?",
+   "o": [
+    "Gleichheitsprinzip",
+    "Bedürfnisprinzip",
+    "Solidarprinzip",
+    "Leistungsprinzip"
+   ],
+   "a": 3,
+   "e": "Position B betont Leistung und Eigenverantwortung."
+  },
+  {
+   "q": "Herr Yilmaz verdient 2.800 € brutto. KV 238,00 €, PV 67,20 €, RV 260,40 €, AV 36,40 €. Wie hoch sind seine Sozialversicherungsbeiträge zusammen?",
+   "o": [
+    "602,00 €",
+    "882,00 €",
+    "280,00 €",
+    "1.918,00 €"
+   ],
+   "a": 0,
+   "e": "238,00 + 67,20 + 260,40 + 36,40 = 602,00 €. Die Lohnsteuer (280 €) gehört nicht dazu."
+  },
+  {
+   "q": "Herr Yilmaz: Alle Abzüge 882,00 € bei 2.800 € Brutto. Wie hoch ist die Abgabenquote?",
+   "o": [
+    "68,25 %",
+    "31,5 %",
+    "10 %",
+    "42,5 %"
+   ],
+   "a": 1,
+   "e": "882 : 2.800 · 100 = 31,5 %."
+  },
+  {
+   "q": "Herr Yilmaz: SV-Beiträge 602,00 €, alle Abzüge 882,00 €. Wie hoch ist der SV-Anteil an allen Abzügen?",
+   "o": [
+    "21,5 %",
+    "31,5 %",
+    "80 %",
+    "68,25 %"
+   ],
+   "a": 3,
+   "e": "602 : 882 · 100 = 68,25 %."
+  },
+  {
+   "q": "Kostenloser Nahverkehr: Welches Ziel wird durch die Finanzierung über Steuern und Abgaben eher schlechter?",
+   "o": [
+    "Wirtschaftswachstum",
+    "Gerechte Verteilung",
+    "Umwelt- und Klimaschutz",
+    "Außenwirtschaftliches Gleichgewicht"
+   ],
+   "a": 0,
+   "e": "Betriebe werden belastet. Gerechte Verteilung wird besser, Wachstum eher schlechter: ein Zielkonflikt."
+  },
+  {
+   "q": "Welcher Satz beschreibt einen Zielkonflikt richtig?",
+   "o": [
+    "Der Nahverkehr ist teuer.",
+    "Ein Ziel wird besser, ein anderes Ziel schlechter.",
+    "Alle Ziele werden schlechter.",
+    "Die Stadt hat zu wenig Busse."
+   ],
+   "a": 1,
+   "e": "Ein Konflikt braucht zwei Ziele und die Richtung."
+  },
+  {
+   "q": "Aussage: „Wer den Nahverkehr oft nutzt, soll etwas beitragen.“ Welches Leitbild passt?",
+   "o": [
+    "Bedürfnis- oder Gleichheitsprinzip",
+    "Zufallsprinzip",
+    "Leistungsprinzip",
+    "Marktprinzip"
+   ],
+   "a": 2,
+   "e": "Wer nutzt, zahlt: Leistungsprinzip."
+  }
+ ]
+}

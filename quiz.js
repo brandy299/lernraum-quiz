@@ -621,9 +621,22 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     /* Datei */
     const fb = el.querySelector("#fileBox");
     fb.innerHTML = `<p class="hint" style="margin:0">Excel-Datei als <b>CSV</b> speichern (Spalten: Frage, Antwort A–D, Richtig als A–D, Erklärung) oder eine <b>JSON</b>-Datei. Die Vorlage zeigt das Format.</p>
-      <div class="row"><button class="btn ghost sm" id="tpl" type="button">Vorlage (CSV)</button><label class="btn pink sm grow filebtn">Datei wählen<input type="file" id="fi" aria-label="Quiz-Datei wählen"></label></div><div id="ferr" aria-live="polite"></div>`;
+      <div class="row"><button class="btn ghost sm" id="tpl" type="button">Vorlage (CSV)</button><label class="btn pink sm grow filebtn">Datei wählen<input type="file" id="fi" aria-label="Quiz-Datei wählen"></label></div>
+      <button class="btn ghost sm" id="ready" type="button">Fertiges Quiz laden: Sechseck und Sozialpolitik (36 Fragen)</button><div id="ferr" aria-live="polite"></div>`;
     fb.querySelector("#tpl").onclick = () => {
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + TEMPLATE], { type: "text/csv" })); a.download = "quiz-vorlage.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    };
+    fb.querySelector("#ready").onclick = async () => {
+      const box = fb.querySelector("#ferr");
+      box.innerHTML = `<p class="hint">Lade …</p>`;
+      let txt;
+      try { const res = await fetch("quizzes/sechseck-sozialpolitik.json"); if (!res.ok) throw 0; txt = await res.text(); }
+      catch { box.innerHTML = `<p class="msg">Das Quiz konnte nicht geladen werden. Bitte Internetverbindung prüfen.</p>`; return; }
+      const r = importFile("quiz.json", txt);
+      if (r.error) { box.innerHTML = `<p class="msg">${esc(r.error)}</p>`; return; }
+      if (r.qs.length) { if (r.title && !draft.title) { draft.title = r.title; el.querySelector("#title").value = r.title; } add(r.qs); }
+      box.innerHTML = `<p class="hint">✓ ${r.qs.length} Fragen übernommen. Sie stehen oben in der Liste.</p>`;
+      if (r.qs.length) chosen.scrollIntoView({ behavior: "smooth", block: "start" });
     };
     fb.querySelector("#fi").onchange = async (ev) => {
       const f = ev.target.files[0]; if (!f) return;
