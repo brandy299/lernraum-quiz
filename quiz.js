@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "14";
+  const CSS_NEED = "15";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -621,19 +621,24 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     /* Datei */
     const fb = el.querySelector("#fileBox");
     fb.innerHTML = `<p class="hint" style="margin:0">Excel-Datei als <b>CSV</b> speichern (Spalten: Frage, Antwort A–D, Richtig als A–D, Erklärung) oder eine <b>JSON</b>-Datei. Die Vorlage zeigt das Format.</p>
-      <div class="row"><button class="btn ghost sm" id="tpl" type="button">Vorlage (CSV)</button><label class="btn pink sm grow" style="cursor:pointer">Datei wählen<input type="file" id="fi" accept=".csv,.json,.txt,text/csv,application/json" hidden></label></div><div id="ferr"></div>`;
+      <div class="row"><button class="btn ghost sm" id="tpl" type="button">Vorlage (CSV)</button><label class="btn pink sm grow filebtn">Datei wählen<input type="file" id="fi" aria-label="Quiz-Datei wählen"></label></div><div id="ferr" aria-live="polite"></div>`;
     fb.querySelector("#tpl").onclick = () => {
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + TEMPLATE], { type: "text/csv" })); a.download = "quiz-vorlage.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     };
     fb.querySelector("#fi").onchange = async (ev) => {
-      const f = ev.target.files[0]; if (!f) return; ev.target.value = "";
+      const f = ev.target.files[0]; if (!f) return;
       const box = fb.querySelector("#ferr");
-      if (f.size > 500000) { box.innerHTML = `<p class="msg">Die Datei ist zu groß.</p>`; return; }
-      const r = importFile(f.name, await f.text());
+      box.innerHTML = `<p class="hint">Lese „${esc(f.name)}“ …</p>`;
+      if (f.size > 500000) { ev.target.value = ""; box.innerHTML = `<p class="msg">Die Datei ist zu groß.</p>`; return; }
+      let txt;
+      try { txt = await f.text(); } catch { ev.target.value = ""; box.innerHTML = `<p class="msg">Die Datei konnte nicht gelesen werden. Alternative: Fragen aus der Datei in „Anleitung: Quiz mit KI erstellen“ einfügen.</p>`; return; }
+      ev.target.value = "";
+      const r = importFile(f.name, txt);
       if (r.error) { box.innerHTML = `<p class="msg">${esc(r.error)}</p>`; return; }
       if (r.qs.length) { if (r.title && !draft.title) { draft.title = r.title; el.querySelector("#title").value = r.title; } add(r.qs); }
-      box.innerHTML = `<p class="hint">${r.qs.length} Fragen übernommen${r.problems.length ? `, ${r.problems.length} übersprungen:` : "."}</p>` +
+      box.innerHTML = `<p class="hint">✓ ${r.qs.length} Fragen aus „${esc(f.name)}“ übernommen${r.problems.length ? `, ${r.problems.length} übersprungen:` : ". Sie stehen oben in der Liste."}</p>` +
         (r.problems.length ? `<p class="msg">${r.problems.slice(0, 5).map(esc).join("<br>")}</p>` : "");
+      if (r.qs.length) chosen.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     /* Eigene Frage */
