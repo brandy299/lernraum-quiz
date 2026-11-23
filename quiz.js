@@ -178,7 +178,7 @@
   let onFsExit = null;
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && onFsExit) onFsExit(); });
   function route() {
-    clearTimer(); onFsExit = null;
+    clearTimer(); onFsExit = null; if (window.QuizMusic) window.QuizMusic.stop();
     document.body.classList.remove("beamer");
     const h = location.hash.replace(/^#\/?/, "");
     const [a, b] = h.split("/");
@@ -783,6 +783,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     }
     onFsExit = () => { if (beamer) { beamer = false; document.body.classList.remove("beamer"); if (st) paint(); } };
     /* Rennbahn: Darstellung und Animationen in race.js */
+    const musicBtn = () => window.QuizMusic ? `<button class="btn sm ${window.QuizMusic.on ? "on" : "ghost"}" id="bMusic" type="button" title="Ruhige Hintergrundmusik, nur auf diesem Gerät (z. B. am Beamer)">♪ Musik: ${window.QuizMusic.on ? "an" : "aus"}</button>` : "";
     const raceOpts = () => ({ hide, beamer, detail, bonus: !!st.bonus, closed: st.status === "closed" });
     const raceSig = (ps, n) => QuizRace.sig(ps, n, raceOpts());
     function raceHtml(ps, n) { return QuizRace.html(ps, n, raceOpts()); }
@@ -820,7 +821,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         <h3 class="section-head">Warteraum · ${ps.length} dabei</h3>
         ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
         ${board(ps)}
-        <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button><button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
+        <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
         <button class="btn pink block startbtn" id="bStart" style="margin-top:18px" ${ps.length ? "" : "disabled"}>Quiz starten (${ps.length})</button>` : `
@@ -829,7 +830,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
           <button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>
           <button class="btn sm ghost" id="bView">Ansicht: ${view === "race" ? "Rennen" : "Einzeln"}</button>
           ${view === "race" ? `<button class="btn sm ${detail ? "on" : "ghost"}" id="bDetail">Einzelantworten: ${detail ? "an" : "aus"}</button>` : `<button class="btn sm ghost" id="bSort">Sortierung: ${sortBy === "join" ? "Beitritt" : "Fortschritt"}</button>`}
-          <button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button>
+          ${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button>
           ${ps.length ? `<button class="btn sm ghost" id="bCsv">Ergebnis exportieren</button>` : ""}
           <span class="grow"></span>
           ${closed ? "" : `<button class="btn sm ${st.bonus ? "on" : "ghost"}" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button>`}
@@ -857,6 +858,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       if ($("#bDetail")) $("#bDetail").onclick = () => { detail = !detail; store.set("quiz.detail", detail); paint(); };
       if ($("#bHide")) $("#bHide").onclick = () => { hide = !hide; store.set("quiz.hideNames", hide); paint(); };
       if ($("#bSort")) $("#bSort").onclick = () => { sortBy = sortBy === "join" ? "progress" : "join"; store.set("quiz.sort", sortBy); paint(); };
+      if ($("#bMusic")) $("#bMusic").onclick = () => { if (window.QuizMusic) { window.QuizMusic.toggle(); paint(); } };
       if ($("#bBeam")) $("#bBeam").onclick = () => setBeamer(true);
       if ($("#bCsv")) $("#bCsv").onclick = () => exportCsv(st, ps, code);
       if ($("#bOff")) $("#bOff").onclick = () => setBeamer(false);

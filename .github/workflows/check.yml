@@ -18,6 +18,7 @@ jobs:
           node --check quiz.js
           node --check race.js
           node --check game.js
+          node --check music.js
           node --check config.js
       - name: Dateien aus index.html vorhanden
         run: |
