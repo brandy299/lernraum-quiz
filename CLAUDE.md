@@ -14,7 +14,7 @@ Funktionen, siehe `supabase/quiz.sql`). **Nur dieses Repo gehört zu deinem Auft
 `docs/LIVE-QUIZ.md` (Ablauf, Datenschutz, Wartung) und `README.md` (Dateikarte).
 
 ## Dateikarte
-- `index.html`, `quiz.js` (Router, Schüler-/Lehreransicht, Demo-Backend), `race.js` (Rennbahn: Pferde, Zuschauer, Effekte), `game.js` (Warteraum-Spiel „Hürdenritt“), `quiz.css`, `config.js` (Supabase-URL + öffentlicher Key)
+- `index.html`, `quiz.js` (Router, Schüler-/Lehreransicht, Demo-Backend), `race.js` (Rennbahn: Pferde, Zuschauer, Effekte), `game.js` (Warteraum-Spiel „Hürdenritt“), `music.js` (optionale Nachdenk-Musik der Lehrkraft), `quiz.css`, `config.js` (Supabase-URL + öffentlicher Key)
 - `assets/` – Kopie von Design, Schriften und QR-Bibliothek aus dem Lernraum. Nur ändern, wenn das Quiz es wirklich braucht.
 - `supabase/quiz.sql` – komplette Datenbank (Tabellen, Funktionen, Rechte), **idempotent**: kann jederzeit erneut ausgeführt werden.
 - `docs/` – Dokumentation und Anleitungen.
