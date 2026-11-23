@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "16";
+  const CSS_NEED = "17";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -177,8 +177,33 @@
 
   let onFsExit = null;
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && onFsExit) onFsExit(); });
+  /* Vollbild-Overlays der Lehrkraft: großer QR-Code und Spiel-Demo (liegen im body, überleben das Neuzeichnen der Live-Ansicht) */
+  let ovStop = null, ovKey = null;
+  function closeOverlay() {
+    if (ovStop) { try { ovStop(); } catch { /* ignorieren */ } ovStop = null; }
+    if (ovKey) { document.removeEventListener("keydown", ovKey, true); ovKey = null; }
+    const o = document.getElementById("qzOv"); if (o) o.remove();
+    document.body.classList.remove("ov-open");
+  }
+  function openOverlay(inner, cls, after) {
+    closeOverlay();
+    const o = document.createElement("div"); o.id = "qzOv"; o.className = "qz-ov " + (cls || "");
+    o.innerHTML = `<div class="qz-ov-in"><button class="btn ghost sm ov-x" type="button" id="ovX">✕ Schließen</button>${inner}</div>`;
+    document.body.appendChild(o); document.body.classList.add("ov-open");
+    o.querySelector("#ovX").onclick = closeOverlay;
+    ovKey = (e) => { if (e.key === "Escape") closeOverlay(); };
+    document.addEventListener("keydown", ovKey, true);
+    if (after) after(o);
+    return o;
+  }
+  /* Demo: das Warteraum-Spiel ohne Raum ausprobieren (nichts wird gespeichert oder gesendet) */
+  function openGameDemo() {
+    if (!window.QuizGame) return;
+    openOverlay(`<div class="qz"><h2 class="h1" style="font-size:24px">Spiel ausprobieren</h2><p class="hint">Demo für dich: Es gibt keinen Raum und keine Bestenliste. So spielen die Schüler/innen im Warteraum.</p>${QuizGame.html()}</div>`, "ov-game", (o) => { ovStop = QuizGame.mount(o, 7, {}); });
+  }
+
   function route() {
-    clearTimer(); onFsExit = null; if (window.QuizMusic) window.QuizMusic.stop();
+    clearTimer(); onFsExit = null; closeOverlay(); if (window.QuizMusic) window.QuizMusic.stop();
     document.body.classList.remove("beamer");
     const h = location.hash.replace(/^#\/?/, "");
     const [a, b] = h.split("/");
@@ -608,6 +633,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${LIVE ? `<label class="field"><span>Lehrer-PIN${pin ? " (gespeichert)" : ""}</span><input class="input" id="pin" type="password" autocomplete="off" value="${esc(pin)}"></label>` : ""}
         <h3 class="section-head">Fragen · <span id="cnt"></span></h3>
         <ol class="chosen" id="chosen"></ol>
+        <div class="row"><button class="btn ghost sm" id="clearQ" type="button">Alle Fragen löschen</button><button class="btn ghost sm" id="gameDemo" type="button">Spiel ausprobieren (Demo)</button></div>
         <button class="btn ghost sm" id="demoQ" type="button">Demo-Quiz laden: Deutsche Geschichte (10 Fragen)</button>
         <details class="add" id="dCourse"><summary>Aus einem Kurs wählen</summary><div class="in" id="courseBox"><p class="hint">Lade Kurse …</p></div></details>
         <details class="add" id="dKi"><summary>Anleitung: Quiz mit KI erstellen</summary><div class="in" id="kiBox"></div></details>
@@ -622,9 +648,12 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       el.querySelector("#cnt").textContent = `${draft.qs.length} von max. ${MAX_Q}`;
       chosen.innerHTML = draft.qs.length ? draft.qs.map((q, i) => `<li><span class="n">${i + 1}</span><span class="t"><span class="tag">${q.t === "text" ? "Text" : q.o.length === 2 ? "R/F" : "MC"}</span>${esc(q.q)}</span><button data-x="${i}" aria-label="Frage entfernen">×</button></li>`).join("")
         : `<li class="empty" style="display:block">Noch keine Fragen. Wähle unten aus einem Kurs oder schreibe eigene.</li>`;
+      const cq = el.querySelector("#clearQ"); if (cq) cq.style.display = draft.qs.length ? "" : "none";
       chosen.querySelectorAll("[data-x]").forEach((b) => { b.onclick = () => { draft.qs.splice(Number(b.dataset.x), 1); save(); paint(); }; });
     }
     paint();
+    el.querySelector("#clearQ").onclick = () => { if (draft.qs.length && confirm(`Alle ${draft.qs.length} Fragen löschen und neu anfangen?`)) { draft.qs = []; draft.title = ""; el.querySelector("#title").value = ""; save(); paint(); } };
+    el.querySelector("#gameDemo").onclick = openGameDemo;
     el.querySelector("#title").oninput = (e) => { draft.title = e.target.value; save(); };
     const add = (qs) => { const room = MAX_Q - draft.qs.length; draft.qs.push(...qs.slice(0, room)); save(); paint(); };
 
@@ -829,12 +858,12 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         <div class="win"><div class="bar"><span class="d"></span><span class="id">${esc(st.title)}</span><span class="r beamer-only" ><button id="bOff" style="color:var(--paper)">✕ Beamer aus</button></span></div>
           <div class="body join-grid"><div><p class="kick">Raumcode · ${esc(baseUrl().replace(/^https?:\/\//, ""))}</p><p class="code-big">${code}</p>
           ${closed ? `<p class="sub">Quiz beendet. Neue Teilnehmer können nicht mehr beitreten.</p>` : lobby ? `<p class="sub">Warteraum: Das Quiz beginnt erst, wenn du auf „Quiz starten“ tippst.</p>` : `<p class="sub">Schüler/innen scannen den QR-Code oder geben den Code auf der Quiz-Seite ein.</p>`}</div>
-          <div class="qr" aria-label="QR-Code zum Beitreten">${qrSvg()}</div></div></div>
+          <button type="button" class="qr qr-btn" id="bQr" aria-label="QR-Code vergrößern" title="Tippen zum Vergrößern">${qrSvg()}<span class="qr-zoom no-beamer">⤢ vergrößern</span></button></div></div>
         ${lobby ? `
         <h3 class="section-head">Warteraum · ${ps.length} dabei</h3>
         ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
         ${board(ps)}
-        <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
+        <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bGame">Spiel ausprobieren</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
         <button class="btn pink block startbtn" id="bStart" style="margin-top:18px" ${ps.length ? "" : "disabled"}>Quiz starten (${ps.length})</button>` : `
@@ -873,6 +902,9 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       if ($("#bSort")) $("#bSort").onclick = () => { sortBy = sortBy === "join" ? "progress" : "join"; store.set("quiz.sort", sortBy); paint(); };
       if ($("#bMusic")) $("#bMusic").onclick = () => { if (window.QuizMusic) { window.QuizMusic.toggle(); paint(); } };
       if ($("#bBeam")) $("#bBeam").onclick = () => setBeamer(true);
+      if ($("#bGame")) $("#bGame").onclick = openGameDemo;
+      if ($("#bQr")) $("#bQr").onclick = () => openOverlay(`<div class="qr-big"><p class="kick">Raumcode · ${esc(baseUrl().replace(/^https?:\/\//, ""))}</p><p class="code-big">${code}</p><div class="qr qr-huge" aria-label="QR-Code zum Beitreten">${qrSvg()}</div><p class="hint">Tippen oder Esc zum Schließen</p></div>`, "ov-qr", (o) => { o.addEventListener("click", closeOverlay); });
+      root.querySelectorAll('a[href="#/lehrer"]').forEach((a) => { a.onclick = () => { store.del("quiz.draft"); }; });
       if ($("#bCsv")) $("#bCsv").onclick = () => exportCsv(st, ps, code);
       if ($("#bOff")) $("#bOff").onclick = () => setBeamer(false);
       if ($("#bEnd")) $("#bEnd").onclick = async () => { if (confirm("Quiz für alle beenden? Danach kann niemand mehr antworten.")) { await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "closed" }); pull(); } };

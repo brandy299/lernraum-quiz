@@ -61,6 +61,11 @@ In der Lehreransicht gibt es **„Ergebnis exportieren“**: lädt eine CSV-Date
 ## Personen entfernen und umbenennen (Lehrkraft)
 Im Warteraum und im Rennen hat jede Person zwei Knöpfe: **✎ Umbenennen** (neuen Spitznamen eintippen, 2 bis 20 Zeichen, bei doppeltem Namen kommt eine Meldung) und **× Entfernen**. Nützlich bei unpassenden Spitznamen. Datenbank: `quiz_rename_player` (nur mit Raum-Geheimnis der Lehrkraft) und `quiz_remove_player`. Entfernte Personen sehen „Du bist nicht mehr im Raum“ mit Knopf zum erneuten Beitreten. Wer umbenannt wurde, sieht den neuen Namen bei der Lehrkraft und in der Rennbahn sofort; auf dem eigenen Handy steht bis zum Neu-Beitritt noch der alte Name. In der Beamer-Ansicht sind die Knöpfe ausgeblendet; zusätzlich gibt es „Namen ausblenden“.
 
+## Lehrkraft-Hilfen (Neues Quiz, großer QR-Code, Spiel-Demo)
+- **Alle Fragen löschen:** Auf der „Neues Quiz“-Seite räumt der Knopf die ganze Fragenliste und den Titel auf einmal ab (mit Rückfrage). Der Link „← Neues Quiz“ in der Raumansicht beginnt außerdem mit einem leeren Entwurf.
+- **QR-Code vergrößern:** In der Raumansicht auf den QR-Code tippen: Vollbild mit großem Code und Raumcode (Tippen oder Esc schließt). Gedacht für Beamer und hintere Reihen.
+- **Spiel ausprobieren:** „Spiel ausprobieren“ (auf der Entwurfsseite und im Warteraum) öffnet das Hürdenritt-Spiel im Vollbild. Reine Demo: kein Raum, keine Bestenliste, es wird nichts gesendet. Alles clientseitig in `quiz.js`, kein SQL.
+
 ## Warteraum-Spiel „Hürdenritt“
 Im Warteraum sehen Schüler/innen unter dem Wartetext ein kleines Pixel-Spiel (`game.js`): Das Pferd galoppiert von selbst, Tippen aufs Bild (oder Leertaste) lässt es springen, **Halten springt höher**. Über Hürden, Büsche und Kisten springen, Münzen (+10) und Herzen sammeln, 3 Herzen. Das **Tempo steigt mit der Zeit** (wie bei Unicorn Dash). Alle 26 Sekunden wechselt die Welt: **Steppe → Stadt → Cyberpunk-Stadt → Weltraum**, danach wieder von vorn (je eigener Himmel, Hintergrund, Boden und Hindernis-Look). Punkte = Münzen × 10 + Meter. Pferdefarbe wählbar (5 Farben, wird auf dem Gerät gemerkt). **Keine Töne** (Beschluss yb 20.11.2026), nur kurze Vibration bei einem Treffer.
 
