@@ -11,15 +11,16 @@ Funktionen, siehe `supabase/quiz.sql`). **Nur dieses Repo gehört zu deinem Auft
 (lernen.yannikbrand.eu) ist ein anderes Projekt und nicht Teil davon.
 
 ## Pflichtlektüre
-`docs/LIVE-QUIZ.md` (Ablauf, Datenschutz, Wartung) und `README.md` (Dateikarte).
+`docs/LIVE-QUIZ.md` (Ablauf, Datenschutz, Wartung), `docs/BEIPACKZETTEL-LIVE-QUIZ.md` (Handbuch mit Screenshots) und `README.md` (Dateikarte).
 
 ## Dateikarte
-- `index.html`, `quiz.js` (Router, Schüler-/Lehreransicht, Demo-Backend), `race.js` (Rennbahn: Pferde, Zuschauer, Effekte), `game.js` (Warteraum-Spiel „Hürdenritt“), `music.js` (optionale Nachdenk-Musik der Lehrkraft), `quiz.css`, `config.js` (Supabase-URL + öffentlicher Key)
+- `index.html`, `quiz.js` (Router, Schüler-/Lehreransicht, Demo-Backend), `race.js` (Rennbahn: Pferde, Zuschauer, Effekte), `game.js` (Warteraum-Spiel „Hürdenritt“), `music.js` (optionale Nachdenk-Musik der Lehrkraft), `ceremony.js` (Siegerehrung mit Podest, Pferd, Konfetti), `quiz.css`, `config.js` (Supabase-URL + öffentlicher Key)
 - `assets/` – Kopie von Design, Schriften und QR-Bibliothek aus dem Lernraum. Nur ändern, wenn das Quiz es wirklich braucht.
 - `supabase/quiz.sql` – komplette Datenbank (Tabellen, Funktionen, Rechte), **idempotent**: kann jederzeit erneut ausgeführt werden.
 - `docs/` – Dokumentation und Anleitungen.
 
 ## Regeln
+- **Beipackzettel:** Jede sichtbare Änderung bekommt einen Eintrag im `docs/BEIPACKZETTEL-LIVE-QUIZ.md` mit aktuellen Screenshots (`docs/img/`, per Playwright im Demo-Modus, als JPG). Ohne aktualisierten Beipackzettel ist ein PR nicht fertig.
 - Sprache Deutsch. Zielgruppe Schüler/innen, fast nur Handy: Tippflächen ≥ 44 px, kein seitliches Scrollen ab 320 px, am Beamer lesbar.
 - Alles automatisch prüfbar, keine Selbstkorrektur. Datenschutz: nur Spitznamen, keine echten Namen, Räume nach 24 h gelöscht. Keine neuen personenbezogenen Daten ohne Rücksprache mit Yannik.
 - **Nie** in das Repo schreiben: Lehrer-PIN, Supabase-`service_role`-Key, Passwörter, Zugangsdaten. In `config.js` darf nur der öffentliche (anon/publishable) Key stehen.
