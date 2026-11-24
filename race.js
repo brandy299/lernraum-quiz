@@ -95,7 +95,8 @@
 
   function rank(ps, fin) {
     const fo = (id) => { const k = fin.indexOf(id); return k < 0 ? 1e9 : k; };
-    return [...ps].sort((a, b) => stp(b) - stp(a) || fo(a.id) - fo(b.id) || b.ok - a.ok || a.i - b.i);
+    const lt = (p) => (p.lt == null ? 1e9 : p.lt);        /* gleiche Punkte: wer schneller war, liegt vorn */
+    return [...ps].sort((a, b) => stp(b) - stp(a) || lt(a) - lt(b) || fo(a.id) - fo(b.id) || b.ok - a.ok || a.i - b.i);
   }
   function el(cls, parent, text) { const e = document.createElement("i"); e.className = cls; if (text) e.textContent = text; parent.appendChild(e); return e; }
   function toast(box, text) {
@@ -127,7 +128,8 @@
       const steps = stp(p);
       runner.style.setProperty("--p", n ? Math.min(1, steps / n) : 0);
       lane.querySelector(".num").textContent = steps;
-      lane.querySelector(".okc").textContent = o.detail ? `${p.ok} ✓ · ${p.done}` : `${p.done} Antw.`;
+      const sm = lane.querySelector(".lsc small"); if (sm) sm.textContent = o.bonus ? " Pkt" : `/${n}`;   /* mit Aufholbonus kann man mehr Punkte als Fragen haben */
+      lane.querySelector(".okc").textContent = o.detail ? `${p.ok} ✓ · ${p.done}` : o.bonus ? `${p.ok} richtig` : `${p.done} Antw.`;
       lane.querySelectorAll(".dots i").forEach((d, k) => { d.className = p.r[k] === true ? "ok" : p.r[k] === false ? "no" : ""; });
       if (steps > old && !S.first) {
         const inc = steps - old;

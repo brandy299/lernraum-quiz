@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "17";
+  const CSS_NEED = "18";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -27,9 +27,17 @@
   const rid = (n = 16) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
   const norm = (t) => String(t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 
+  /* Wertung: Punkte = richtige Antworten + Aufholbonus. Bei Gleichstand gewinnt, wer die letzte richtige Antwort früher abgegeben hat (lt = Sekunden seit Start). */
+  const pts = (p) => (p.ok || 0) + (p.bn || 0);
+  const ltv = (p) => (p.lt == null ? 1e9 : p.lt);
+  const ranked = (ps) => [...ps].sort((a, b) => pts(b) - pts(a) || ltv(a) - ltv(b) || a.i - b.i);
+  const beats = (a, b) => (pts(a) !== pts(b) ? pts(a) > pts(b) : ltv(a) < ltv(b));
+  const fmtT = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
   const ERR = {
     NO_ROOM: "Diesen Raum gibt es nicht (mehr). Prüfe den Code.",
     CLOSED: "Das Quiz ist schon beendet.",
+    TIME_UP: "Die Zeit ist abgelaufen.",
     NOT_STARTED: "Das Quiz hat noch nicht begonnen.",
     NICK_TAKEN: "Dieser Spitzname ist schon vergeben. Nimm einen anderen.",
     BAD_NICK: "Der Spitzname braucht mindestens 2 Zeichen.",
@@ -76,11 +84,13 @@
       return p;
     };
     const solution = (q) => (q.t === "text" ? q.a[0] : q.a);
+    const left = (r) => (r.tl == null ? null : !r.started ? r.tl : Math.max(0, Math.ceil((r.started + r.tl * 1000 - Date.now()) / 1000)));
+    const lastOk = (r, pid) => { const xs = db.answers.filter((x) => x.pid === pid && x.ok && x.at); return xs.length ? Math.round(((Math.max(...xs.map((x) => x.at)) - (r.started || Date.parse(r.created))) / 1000) * 100) / 100 : null; };
     switch (name) {
       case "quiz_create": {
         if (!a.p_questions.length || a.p_questions.length > MAX_Q) throw new Error("BAD_QUESTIONS");
         let code; do { code = String(10000 + Math.floor(Math.random() * 90000)); } while (db.rooms[code]);
-        db.rooms[code] = { code, secret: a.p_secret, title: (a.p_title || "Quiz").slice(0, 80), questions: a.p_questions, status: "open", bonus: false, created: new Date().toISOString() };
+        db.rooms[code] = { code, secret: a.p_secret, title: (a.p_title || "Quiz").slice(0, 80), questions: a.p_questions, status: "open", bonus: false, tl: null, started: null, created: new Date().toISOString() };
         save(); return code;
       }
       case "quiz_join": {
@@ -100,6 +110,7 @@
         if (r.status !== "open") throw new Error("CLOSED");
         const q = r.questions[a.p_q]; if (!q) throw new Error("BAD_Q");
         let ex = db.answers.find((x) => x.pid === a.p_pid && x.q === a.p_q);
+        if (!ex && r.tl != null && r.started && Date.now() > r.started + (r.tl + 3) * 1000) throw new Error("TIME_UP");
         if (!ex) {
           const ok = q.t === "text" ? q.a.some((x) => norm(x) === norm(a.p_given)) : String(a.p_given) === String(q.a);
           let bonus = false;
@@ -109,7 +120,7 @@
             const mine = steps(a.p_pid), ahead = ps.filter((p) => steps(p.id) > mine).length;
             bonus = ps.length >= 4 && ahead >= Math.ceil((ps.length * 2) / 3);
           }
-          ex = { pid: a.p_pid, q: a.p_q, given: a.p_given, ok, bonus }; db.answers.push(ex); save();
+          ex = { pid: a.p_pid, q: a.p_q, given: a.p_given, ok, bonus, at: Date.now() }; db.answers.push(ex); save();
         }
         return { ok: ex.ok, a: solution(q), e: q.e || null, bonus: !!ex.bonus };
       }
@@ -117,25 +128,30 @@
         const r = room(a.p_code); player(a.p_code, a.p_pid, a.p_token);
         const answers = db.answers.filter((x) => x.pid === a.p_pid).sort((x, y) => x.q - y.q)
           .map((x) => ({ q: x.q, ok: x.ok, given: x.given, a: solution(r.questions[x.q]), e: r.questions[x.q].e || null, bonus: !!x.bonus }));
-        return { status: r.status, title: r.title, questions: strip(r.questions), answers, count: db.players.filter((p) => p.code === a.p_code).length };
+        return { status: r.status, title: r.title, questions: strip(r.questions), answers, count: db.players.filter((p) => p.code === a.p_code).length, tl: r.tl, left: left(r) };
       }
       case "quiz_watch_state": {
         const r = room(a.p_code); player(a.p_code, a.p_pid, a.p_token);
         const players = db.players.filter((p) => p.code === a.p_code).map((p, k) => ({
           id: String(k + 1), me: p.id === a.p_pid, nick: p.nick,
-          done: db.answers.filter((x) => x.pid === p.id).length, ok: db.answers.filter((x) => x.pid === p.id && x.ok).length, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length }));
-        return { status: r.status, n: r.questions.length, bonus: !!r.bonus, players };
+          done: db.answers.filter((x) => x.pid === p.id).length, ok: db.answers.filter((x) => x.pid === p.id && x.ok).length, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length, lt: lastOk(r, p.id) }));
+        return { status: r.status, n: r.questions.length, bonus: !!r.bonus, players, tl: r.tl, left: left(r) };
       }
       case "quiz_teacher_state": {
         const r = room(a.p_code, a.p_secret);
         const players = db.players.filter((p) => p.code === a.p_code).map((p) => ({
-          id: p.id, nick: p.nick, gs: p.gs || 0, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length,
+          id: p.id, nick: p.nick, gs: p.gs || 0, bn: db.answers.filter((x) => x.pid === p.id && x.bonus).length, lt: lastOk(r, p.id),
           r: r.questions.map((_, i) => { const x = db.answers.find((y) => y.pid === p.id && y.q === i); return x ? x.ok : null; })
         }));
-        return { status: r.status, title: r.title, questions: r.questions, players, created: r.created, bonus: !!r.bonus };
+        return { status: r.status, title: r.title, questions: r.questions, players, created: r.created, bonus: !!r.bonus, tl: r.tl, left: left(r) };
       }
       case "quiz_set_bonus": room(a.p_code, a.p_secret).bonus = !!a.p_bonus; save(); return null;
-      case "quiz_set_status": room(a.p_code, a.p_secret).status = a.p_status; save(); return null;
+      case "quiz_set_status": {
+        const r = room(a.p_code, a.p_secret); r.status = a.p_status;
+        if (a.p_status === "open" && (!r.started || (r.tl != null && Date.now() > r.started + r.tl * 1000))) r.started = Date.now();
+        save(); return null;
+      }
+      case "quiz_set_time": { const r = room(a.p_code, a.p_secret); r.tl = Number(a.p_seconds) > 0 ? Math.min(7200, Number(a.p_seconds)) : null; save(); return null; }
       case "quiz_remove_player": room(a.p_code, a.p_secret); db.players = db.players.filter((p) => p.id !== a.p_pid); save(); return null;
       case "quiz_game_score": {
         const r = room(a.p_code); const pl = player(a.p_code, a.p_pid, a.p_token);
@@ -257,10 +273,11 @@
     if (!me) { location.replace(`#/${code}`); return; }
     let state = { status: "open", questions: me.questions, answers: me.answers || {}, title: me.title };
     let cur = null;   // Frage, deren Rückmeldung gerade sichtbar ist
-    let busy = false, note = "";
+    let busy = false, note = "", pulseN = 0, cerShown = false;
 
     const apply = (s) => {
       state.status = s.status; state.questions = s.questions; state.title = s.title; state.count = s.count;
+      state.tl = s.tl == null ? null : s.tl; state.endAt = s.left == null ? null : Date.now() + s.left * 1000;
       const m = {}; s.answers.forEach((x) => { m[x.q] = x; }); state.answers = m;
     };
     try { apply(await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token })); }
@@ -276,6 +293,38 @@
       const x = state.answers[i]; return `<i class="${x ? (x.ok ? "ok" : "no") : (i === active ? "cur" : "")}"></i>`; }).join("")}</div>`;
     const head = `<header class="top"><span class="tag-box"><i class="sq"></i>${esc(me.nick)}</span><span class="q-count">Raum ${esc(code)}</span></header>`;
 
+    /* Zeit, Platz und Punkte */
+    const timeLeft = () => (state.endAt == null ? null : Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000)));
+    const ended = () => state.status === "closed" || (state.status === "open" && state.endAt != null && Date.now() >= state.endAt);
+    const ownPts = () => { const v = Object.values(state.answers); return v.filter((x) => x.ok).length + v.filter((x) => x.bonus).length; };
+    function rankHtml() {
+      const r = state.rank, tl = timeLeft();
+      const pos = r && r.any ? `Platz <b>${r.pos}</b> von ${r.n}` : r ? `<span class="rk-none">Noch keine Punkte</span>` : `<span class="rk-none">Platz wird geladen …</span>`;
+      return `<div class="rankbar" id="rk"><span class="rk-pos">${pos}</span><span><b>${ownPts()}</b> Punkte</span>${tl == null ? "" : `<span class="rk-time${tl <= 30 ? " low" : ""}" id="rkT">⏱ ${fmtT(tl)}</span>`}</div>`;
+    }
+    const paintRank = () => { const el = root.querySelector("#rk"); if (el) el.outerHTML = rankHtml(); };
+    function applyWatch(w) {
+      const ps = w.players.map((p, i) => ({ ...p, i }));
+      state.watchPs = ps; state.watchN = w.n;
+      if (w.left != null && w.status === "open") state.endAt = Date.now() + w.left * 1000;
+      const me = ps.find((p) => p.me);
+      if (me) state.rank = { pos: 1 + ps.filter((p) => beats(p, me)).length, n: ps.length, any: ps.some((p) => pts(p) > 0) };
+    }
+    async function pollRank() {
+      let w;
+      try { w = await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
+      if (w.status === "closed" && state.status !== "closed") { try { apply(await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token })); } catch { /* weiter */ } render(); return; }
+      applyWatch(w); paintRank();
+    }
+    function pulse() {
+      pulseN = 0;
+      every(1000, async () => {
+        const tl = timeLeft(), t = root.querySelector("#rkT");
+        if (t && tl != null) { t.textContent = `⏱ ${fmtT(tl)}`; t.classList.toggle("low", tl <= 30); }
+        if (ended()) { clearTimer(); render(); return; }
+        if (pulseN++ % 4 === 0) await pollRank();
+      });
+    }
     const isGone = (e) => ["NO_PLAYER", "NO_ROOM"].includes(String(e && e.message));
     const gone = () => {
       clearTimer(); store.del(`quiz.player.${code}`);
@@ -283,7 +332,7 @@
     };
     function render() {
       clearTimer();
-      if (state.status === "closed") return renderEnd();
+      if (ended()) return renderEnd();
       if (state.status === "lobby") return renderLobby();
       const idx = cur != null ? cur : nextIdx();
       if (idx === -1) return renderWait();
@@ -307,7 +356,7 @@
           (ans.e ? `<span class="ln mut">${esc(ans.e)}</span>` : "") + `</div>
           <button class="btn block" id="next" style="margin-top:14px">${nextIdx() === -1 ? "Fertig" : "Weiter"}</button>`;
       }
-      const el = show(`${head}${segs(idx)}
+      const el = show(`${head}${rankHtml()}${segs(idx)}
         <div class="q-count" style="margin-top:14px">Frage ${idx + 1} von ${total()}</div>
         <h2 class="q-text">${esc(q.q)}</h2>${body}${fb}${note ? `<p class="msg">${esc(note)}</p>` : ""}`);
       note = "";
@@ -315,6 +364,7 @@
       const tf = el.querySelector("#tf");
       if (tf && !ans) { tf.onsubmit = (ev) => { ev.preventDefault(); const v = el.querySelector("#tv").value.trim(); if (v) send(idx, v); }; el.querySelector("#tv").focus(); }
       const nx = el.querySelector("#next"); if (nx) nx.onclick = () => { cur = null; render(); };
+      pulse();
     }
     async function send(idx, given) {
       if (busy) return; busy = true;
@@ -324,22 +374,25 @@
         cur = idx;
       } catch (e) {
         if (isGone(e)) { busy = false; gone(); return; }
-        if (String(e.message) === "CLOSED") state.status = "closed"; else note = errText(e);
+        if (String(e.message) === "CLOSED") state.status = "closed";
+        else if (String(e.message) === "TIME_UP") state.endAt = Date.now();
+        else note = errText(e);
       }
-      busy = false; render();
+      busy = false; render(); pollRank();
     }
     function renderLobby() {
       show(`${head}<div class="win lobby"><div class="bar"><span class="d"></span><span class="id">WARTERAUM</span></div>
         <div class="body"><p class="kick">${esc(state.title)}</p><p class="say">Du bist dabei, ${esc(me.nick)}.</p>
         <p class="sub" style="margin-top:8px">Gleich geht es los. Die Lehrkraft startet das Quiz.</p>
         <div class="waitdots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="sub" id="tlInfo">${state.tl ? `⏱ Zeit für das ganze Quiz: <b>${fmtT(state.tl)} Min</b>` : ""}</p>
         <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>
         <h3 class="section-head">Spiel zum Warten</h3>${window.QuizGame ? QuizGame.html() : ""}`);
       const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0), { onScore: (sc) => { rpc("quiz_game_score", { p_code: code, p_pid: me.pid, p_token: me.token, p_score: sc }).catch(() => {}); } }) : () => {};
       every(2000, async () => {
         let s2;
         try { s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
-        if (s2.status === "lobby") { const c = root.querySelector("#cnt"), l = root.querySelector("#cntl"); if (c) c.textContent = s2.count; if (l) l.textContent = s2.count === 1 ? "Person" : "Personen"; return; }
+        if (s2.status === "lobby") { const ti = root.querySelector("#tlInfo"); if (ti) ti.innerHTML = s2.tl ? `⏱ Zeit für das ganze Quiz: <b>${fmtT(s2.tl)} Min</b>` : ""; const c = root.querySelector("#cnt"), l = root.querySelector("#cntl"); if (c) c.textContent = s2.count; if (l) l.textContent = s2.count === 1 ? "Person" : "Personen"; return; }
         clearTimer(); apply(s2); countdown();
       });
       const stopPoll = stopTimer; stopTimer = () => { stopPoll(); stopGame(); };
@@ -357,10 +410,10 @@
     function ownScore() { const v = Object.values(state.answers); return { ok: v.filter((x) => x.ok).length, b: v.filter((x) => x.bonus).length, n: total() }; }
     function renderWait() {
       const s = ownScore();
-      show(`${head}${segs(-1)}
+      show(`${head}${rankHtml()}${segs(-1)}
         <div class="win" style="margin-top:20px"><div class="bar"><span class="d"></span><span class="id">FERTIG</span></div>
         <div class="body"><p class="kick">Dein Ergebnis</p><p class="score">${s.ok}<span style="font-size:.5em;color:var(--ink-2)"> / ${s.n}</span></p>
-        ${s.b ? `<p class="sub" style="margin-top:8px">+ ${s.b} Bonuspunkt${s.b > 1 ? "e" : ""} durch den Aufholbonus</p>` : ""}<p class="sub" style="margin-top:12px">Du bist fertig. Unten siehst du live, wie die anderen noch laufen. Wenn die Lehrkraft beendet, siehst du alle Antworten.</p></div></div>
+        <p class="sub" style="margin-top:6px">richtig${s.b ? ` + ${s.b} Bonuspunkt${s.b > 1 ? "e" : ""} (Aufholbonus) = <b>${s.ok + s.b} Punkte</b>` : ""}</p><p class="sub" style="margin-top:12px">Du bist fertig. Unten siehst du live, wie die anderen noch laufen. Wenn die Lehrkraft beendet, siehst du alle Antworten.</p></div></div>
         <h3 class="section-head">Das Rennen live</h3><div id="raceSlot"></div>
         <p style="margin-top:16px"><button class="btn ghost block" id="rev">Meine Antworten ansehen</button></p>`);
       root.querySelector("#rev").onclick = () => { cur = 0; renderReview(); };
@@ -378,6 +431,8 @@
         let w;
         try { w = await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) { gone(); return; } throw e; }
         if (w.status === "closed") { apply(await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token })); render(); return; }
+        applyWatch(w); paintRank();
+        if (ended()) { render(); return; }
         paintWatch(w);
       };
       poll().catch(() => {});
@@ -424,16 +479,39 @@
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" })); a.download = "lernzettel.txt";
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }
-    function renderEnd() {
-      const s = ownScore();
-      show(`${head}<div class="win"><div class="bar"><span class="d"></span><span class="id">QUIZ BEENDET</span></div>
+    function cerList() {
+      const ps = state.watchPs || [];
+      return ranked(ps).map((p) => ({ ...p, pts: pts(p) }));
+    }
+    function openCer() {
+      const list = cerList(); if (!list.length) return;
+      const pos = list.findIndex((p) => p.me) + 1;
+      const o = { n: state.watchN || total(), hide: false, meLine: pos ? `Du bist Platz ${pos} von ${list.length}.` : "" };
+      openOverlay(QuizCeremony.html(list, o), "ov-cer", (ov) => { ovStop = QuizCeremony.play(ov, list, o); });
+    }
+    async function renderEnd() {
+      clearTimer();
+      const s = ownScore(), timeUp = state.status !== "closed";
+      show(`${head}<div class="win"><div class="bar"><span class="d"></span><span class="id">${timeUp ? "ZEIT ABGELAUFEN" : "QUIZ BEENDET"}</span></div>
         <div class="body"><p class="kick">${esc(state.title)}</p><p class="score">${s.ok}<span style="font-size:.5em;color:var(--ink-2)"> / ${s.n}</span></p>
-        <p class="sub" style="margin-top:10px">${s.b ? `+ ${s.b} Bonuspunkt${s.b > 1 ? "e" : ""} durch den Aufholbonus. ` : ""}${answeredN() < s.n ? `Du hast ${answeredN()} von ${s.n} Fragen beantwortet.` : "Gut gemacht."}</p></div></div>
+        <p class="sub" style="margin-top:6px">richtig${s.b ? ` + ${s.b} Bonuspunkt${s.b > 1 ? "e" : ""} (Aufholbonus) = <b>${s.ok + s.b} Punkte</b>` : ""}</p>
+        <p class="sub" style="margin-top:10px">${answeredN() < s.n ? `Du hast ${answeredN()} von ${s.n} Fragen beantwortet.` : "Gut gemacht."}</p></div></div>
+        <div id="rkBox"></div>
         ${learnHtml()}
         <h3 class="section-head">Alle Fragen</h3>
         <ul class="review">${state.questions.map((q, i) => { const x = state.answers[i];
           return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(q.t === "text" ? x.a : q.o[Number(x.a)])}</span>` : ""}${x && x.e ? `<br><span class="hint">${esc(x.e)}</span>` : ""}</span></li>`; }).join("")}</ul>
         <p style="margin-top:20px"><button class="btn ghost block" id="leave">Raum verlassen</button></p>`);
+      try {
+        applyWatch(await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token }));
+        const box = root.querySelector("#rkBox");
+        if (box && state.rank) {
+          box.innerHTML = `<h3 class="section-head">Dein Platz</h3><div class="rank-big"><div><div class="v">${state.rank.any ? state.rank.pos : "–"}<small style="font-size:.45em"> von ${state.rank.n}</small></div><div class="k">Platz</div></div><div><div class="v">${ownPts()}</div><div class="k">Punkte</div></div></div>
+            <button class="btn pink block" id="bCer" type="button" style="margin-top:12px">🏆 Siegerehrung ansehen</button>`;
+          box.querySelector("#bCer").onclick = openCer;
+          if (!cerShown && state.rank.any) { cerShown = true; openCer(); }
+        }
+      } catch (e) { if (isGone(e)) { gone(); return; } }
       const sv = root.querySelector("#bSave");
       if (sv) sv.onclick = saveLearn;
       root.querySelector("#leave").onclick = () => { store.del(`quiz.player.${code}`); location.hash = "#/"; };
@@ -454,11 +532,11 @@
     const d = new Date(), day = d.toISOString().slice(0, 10);
     const rows = [
       line(["Quiz", st.title || ""]), line(["Raum", code]), line(["Datum", d.toLocaleDateString("de-DE")]), line(["Aufholbonus", st.bonus ? "an" : "aus"]), "",
-      line(["Nr", "Spitzname", "Richtig", "Falsch", "Nicht beantwortet", "Bonuspunkte", "Punkte gesamt", "Prozent richtig", ...st.questions.map((_, i) => `Frage ${i + 1}`)])
+      line(["Nr", "Spitzname", "Richtig", "Falsch", "Nicht beantwortet", "Bonuspunkte", "Punkte gesamt", "Prozent richtig", "Zeit bis letzte richtige Antwort", ...st.questions.map((_, i) => `Frage ${i + 1}`)])
     ];
-    [...ps].sort((a, b) => (b.ok + (b.bn || 0)) - (a.ok + (a.bn || 0)) || a.i - b.i).forEach((p, k) => {
+    ranked(ps).forEach((p, k) => {
       const wrong = p.r.filter((x) => x === false).length;
-      rows.push(line([k + 1, p.nick, p.ok, wrong, n - p.ok - wrong, p.bn || 0, p.ok + (p.bn || 0), n ? Math.round((100 * p.ok) / n) + " %" : "", ...p.r.map((x) => (x === true ? "richtig" : x === false ? "falsch" : "–"))]));
+      rows.push(line([k + 1, p.nick, p.ok, wrong, n - p.ok - wrong, p.bn || 0, p.ok + (p.bn || 0), n ? Math.round((100 * p.ok) / n) + " %" : "", p.lt == null ? "" : fmtT(p.lt), ...p.r.map((x) => (x === true ? "richtig" : x === false ? "falsch" : "–"))]));
     });
     rows.push("", line(["Frage", "Text", "Beantwortet", "Richtig", "Quote richtig"]));
     st.questions.forEach((q, i) => {
@@ -804,7 +882,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
   async function viewRoom(code) {
     const secret = store.get(`quiz.teacher.${code}`);
     if (!secret) { show(`<header class="top"><a class="tag-box" href="#/lehrer">← Neues Quiz</a></header><p class="msg">Dieser Raum wurde auf einem anderen Gerät angelegt. Öffne ihn dort, oder lege ein neues Quiz an.</p>`); return; }
-    let st = null, hide = store.get("quiz.hideNames", false), view = store.get("quiz.view", "race"), detail = store.get("quiz.detail", false), sortBy = store.get("quiz.sort", "join"), beamer = false;
+    let st = null, stAt = 0, timeUpSeen = false, hide = store.get("quiz.hideNames", false), view = store.get("quiz.view", "race"), detail = store.get("quiz.detail", false), sortBy = store.get("quiz.sort", "join"), beamer = false;
     const qrSvg = () => {
       if (typeof qrcode !== "function") return "";
       const q = qrcode(0, "M"); q.addData(joinUrl(code)); q.make(); return q.createSvgTag({ cellSize: 8, margin: 1, scalable: true });
@@ -813,7 +891,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     async function pull() {
       const next = await rpc("quiz_teacher_state", { p_code: code, p_secret: secret });
       const sig = JSON.stringify(next);
-      st = next;
+      st = next; stAt = Date.now();
       if (sig !== last) { last = sig; paint(); }
     }
     const repaint = () => { last = ""; paint(); };
@@ -826,6 +904,13 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     onFsExit = () => { if (beamer) { beamer = false; document.body.classList.remove("beamer"); if (st) paint(); } };
     /* Rennbahn: Darstellung und Animationen in race.js */
     const musicBtn = () => window.QuizMusic ? `<button class="btn sm ${window.QuizMusic.on ? "on" : "ghost"}" id="bMusic" type="button" title="Ruhige Hintergrundmusik, nur auf diesem Gerät (z. B. am Beamer)">♪ Musik: ${window.QuizMusic.on ? "an" : "aus"}</button>` : "";
+    const leftNow = () => (st && st.left != null && st.status === "open" ? Math.max(0, Math.ceil(st.left - (Date.now() - stAt) / 1000)) : null);
+    function openCeremony(ps) {
+      const list = ranked(ps).map((p) => ({ ...p, pts: pts(p) }));
+      const o = { n: st.questions.length, hide };
+      openOverlay(QuizCeremony.html(list, o), "ov-cer", (ov) => { ovStop = QuizCeremony.play(ov, list, o); });
+    }
+    const TL_OPTS = [0, 180, 300, 600, 900, 1200, 1800];
     const raceOpts = () => ({ hide, beamer, detail, bonus: !!st.bonus, closed: st.status === "closed" });
     const raceSig = (ps, n) => QuizRace.sig(ps, n, raceOpts());
     function raceHtml(ps, n) { return QuizRace.html(ps, n, raceOpts()); }
@@ -854,7 +939,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       const keep = document.scrollingElement.scrollTop;
       const oldRace = root.querySelector("#race");
       show(`
-        <header class="top no-beamer"><a class="tag-box" href="#/lehrer">← Neues Quiz</a><span class="tag-box ink">${closed ? "Beendet" : lobby ? "Warteraum" : "Läuft"}</span></header>
+        <header class="top no-beamer"><a class="tag-box" href="#/lehrer">← Neues Quiz</a><span class="tag-box ink">${closed ? "Beendet" : lobby ? "Warteraum" : leftNow() === 0 ? "Zeit abgelaufen" : "Läuft"}${!lobby && !closed && leftNow() ? ` · <span class="tag-time" id="tcount">⏱ ${fmtT(leftNow())}</span>` : ""}</span></header>
         <div class="win"><div class="bar"><span class="d"></span><span class="id">${esc(st.title)}</span><span class="r beamer-only" ><button id="bOff" style="color:var(--paper)">✕ Beamer aus</button></span></div>
           <div class="body join-grid"><div><p class="kick">Raumcode · ${esc(baseUrl().replace(/^https?:\/\//, ""))}</p><p class="code-big">${code}</p>
           ${closed ? `<p class="sub">Quiz beendet. Neue Teilnehmer können nicht mehr beitreten.</p>` : lobby ? `<p class="sub">Warteraum: Das Quiz beginnt erst, wenn du auf „Quiz starten“ tippst.</p>` : `<p class="sub">Schüler/innen scannen den QR-Code oder geben den Code auf der Quiz-Seite ein.</p>`}</div>
@@ -865,6 +950,8 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         ${board(ps)}
         <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bGame">Spiel ausprobieren</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
         <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
+        <div class="row no-beamer timebox" style="margin-top:10px"><label for="tlSel" class="grow"><b>Quiz auf Zeit</b></label><select class="input" id="tlSel" aria-label="Zeitlimit">${(TL_OPTS.includes(st.tl || 0) ? TL_OPTS : [...TL_OPTS, st.tl].sort((a, b) => a - b)).map((v) => `<option value="${v}" ${v === (st.tl || 0) ? "selected" : ""}>${v ? `${Math.round(v / 60)} Minuten` : "Kein Zeitlimit"}</option>`).join("")}</select></div>
+        <p class="hint no-beamer" style="margin-top:8px">Zeitlimit: Die Uhr startet mit „Quiz starten“ und läuft für alle gleich. Danach sind keine Antworten mehr möglich. Bei Gleichstand gewinnt, wer schneller war.</p>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
         <button class="btn pink block startbtn" id="bStart" style="margin-top:18px" ${ps.length ? "" : "disabled"}>Quiz starten (${ps.length})</button>` : `
         <div class="stats" style="margin-top:16px"><div><div class="v">${ps.length}</div><div class="k">Dabei</div></div><div><div class="v">${finished}</div><div class="k">Fertig</div></div><div><div class="v">${answered}<small>/${n * ps.length}</small></div><div class="k">Beantwortet</div></div><div><div class="v">${right}<small> · ${avg}%</small></div><div class="k">Richtig</div></div></div>
@@ -873,7 +960,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
           <button class="btn sm ghost" id="bView">Ansicht: ${view === "race" ? "Rennen" : "Einzeln"}</button>
           ${view === "race" ? `<button class="btn sm ${detail ? "on" : "ghost"}" id="bDetail">Einzelantworten: ${detail ? "an" : "aus"}</button>` : `<button class="btn sm ghost" id="bSort">Sortierung: ${sortBy === "join" ? "Beitritt" : "Fortschritt"}</button>`}
           ${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button>
-          ${ps.length ? `<button class="btn sm ghost" id="bCsv">Ergebnis exportieren</button>` : ""}
+          ${ps.length ? `<button class="btn sm ${closed || finished === ps.length || leftNow() === 0 ? "pink" : "ghost"}" id="bCer">🏆 Siegerehrung</button><button class="btn sm ghost" id="bCsv">Ergebnis exportieren</button>` : ""}
           <span class="grow"></span>
           ${closed ? "" : `<button class="btn sm ${st.bonus ? "on" : "ghost"}" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button>`}
           ${closed ? `<button class="btn sm ghost" id="bOpen">Wieder öffnen</button><button class="btn sm ghost" id="bDel">Raum löschen</button>` : `<button class="btn sm" id="bEnd">Quiz beenden</button>`}
@@ -903,6 +990,8 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       if ($("#bMusic")) $("#bMusic").onclick = () => { if (window.QuizMusic) { window.QuizMusic.toggle(); paint(); } };
       if ($("#bBeam")) $("#bBeam").onclick = () => setBeamer(true);
       if ($("#bGame")) $("#bGame").onclick = openGameDemo;
+      if ($("#bCer")) $("#bCer").onclick = () => openCeremony(ps);
+      if ($("#tlSel")) $("#tlSel").onchange = async (e) => { try { await rpc("quiz_set_time", { p_code: code, p_secret: secret, p_seconds: Number(e.target.value) }); } catch (er) { alert(errText(er)); } pull(); };
       if ($("#bQr")) $("#bQr").onclick = () => openOverlay(`<div class="qr-big"><p class="kick">Raumcode · ${esc(baseUrl().replace(/^https?:\/\//, ""))}</p><p class="code-big">${code}</p><div class="qr qr-huge" aria-label="QR-Code zum Beitreten">${qrSvg()}</div><p class="hint">Tippen oder Esc zum Schließen</p></div>`, "ov-qr", (o) => { o.addEventListener("click", closeOverlay); });
       root.querySelectorAll('a[href="#/lehrer"]').forEach((a) => { a.onclick = () => { store.del("quiz.draft"); }; });
       if ($("#bCsv")) $("#bCsv").onclick = () => exportCsv(st, ps, code);
@@ -921,6 +1010,12 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     try { await pull(); }
     catch (e) { show(`<header class="top"><a class="tag-box" href="#/lehrer">← Neues Quiz</a></header><p class="msg">${esc(errText(e))}</p>`); return; }
     every(POLL_T, pull);
+    const tt = setInterval(() => {
+      const l = leftNow(), t = root.querySelector("#tcount");
+      if (t && l != null) t.textContent = `⏱ ${fmtT(l)}`;
+      if (l === 0 && !timeUpSeen) { timeUpSeen = true; repaint(); }
+    }, 1000);
+    const sp = stopTimer; stopTimer = () => { sp(); clearInterval(tt); };
   }
 
   route();

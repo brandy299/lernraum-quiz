@@ -25,6 +25,9 @@ create table if not exists quiz_rooms (
 );
 
 alter table quiz_rooms add column if not exists bonus boolean not null default false;
+-- Quiz auf Zeit: Zeitlimit in Sekunden (leer = unbegrenzt), Startzeit wird beim Start durch die Lehrkraft gesetzt
+alter table quiz_rooms add column if not exists time_limit int;
+alter table quiz_rooms add column if not exists started_at timestamptz;
 
 create table if not exists quiz_players (
   id uuid primary key default gen_random_uuid(),
@@ -67,6 +70,14 @@ create or replace function quiz_strip(qs jsonb) returns jsonb
 language sql immutable as $$
   select coalesce(jsonb_agg(q - 'a' - 'e' order by ord), '[]'::jsonb)
   from jsonb_array_elements(qs) with ordinality as t(q, ord)
+$$;
+
+-- Verbleibende Sekunden (leer = kein Zeitlimit; vor dem Start = ganzes Limit)
+create or replace function quiz_left(r quiz_rooms) returns int
+language sql stable as $$
+  select case when r.time_limit is null then null
+              when r.started_at is null then r.time_limit
+              else greatest(0, ceil(extract(epoch from (r.started_at + r.time_limit * interval '1 second' - now())))::int) end
 $$;
 
 -- Alte Räume löschen (> 24 h)
@@ -140,6 +151,11 @@ begin
   if found then
     return jsonb_build_object('ok', ex.ok, 'a', v_a, 'e', qq->'e', 'bonus', ex.bonus);
   end if;
+  -- Quiz auf Zeit: nach Ablauf (3 s Toleranz für die Leitung) keine neuen Antworten
+  if r.time_limit is not null and r.started_at is not null
+     and now() > r.started_at + (r.time_limit + 3) * interval '1 second' then
+    raise exception 'TIME_UP';
+  end if;
   if qq->>'t' = 'text' then
     v_ok := exists (select 1 from jsonb_array_elements_text(qq->'a') x where quiz_norm(x) = quiz_norm(p_given #>> '{}'));
   else
@@ -177,7 +193,8 @@ begin
     into v_answers from quiz_answers a where a.player_id = p_pid;
   return jsonb_build_object('status', r.status, 'title', r.title,
                             'questions', quiz_strip(r.questions), 'answers', v_answers,
-                            'count', (select count(*) from quiz_players where code = p_code));
+                            'count', (select count(*) from quiz_players where code = p_code),
+                            'tl', r.time_limit, 'left', quiz_left(r));
 end $$;
 
 -- Live-Stand (Lehrkraft) ------------------------------------------------------
@@ -190,12 +207,14 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
       'id', p.id, 'nick', p.nick, 'gs', p.game_best,
       'bn', (select count(*) from quiz_answers a where a.player_id = p.id and a.bonus),
+      'lt', (select round(extract(epoch from (max(a.at) - coalesce(r.started_at, r.created_at)))::numeric, 2) from quiz_answers a where a.player_id = p.id and a.ok),
       'r', (select jsonb_agg((select a.ok from quiz_answers a where a.player_id = p.id and a.q = g) order by g)
             from generate_series(0, jsonb_array_length(r.questions) - 1) g)
     ) order by p.joined_at), '[]'::jsonb)
   into v_players from quiz_players p where p.code = p_code;
   return jsonb_build_object('status', r.status, 'title', r.title, 'questions', r.questions,
-                            'players', v_players, 'created', r.created_at, 'bonus', r.bonus);
+                            'players', v_players, 'created', r.created_at, 'bonus', r.bonus,
+                            'tl', r.time_limit, 'left', quiz_left(r));
 end $$;
 
 -- Zuschauer-Ansicht für fertige Schüler/innen: nur Spitzname und Fortschritt, keine Antworten ------
@@ -211,11 +230,13 @@ begin
       'id', p.n::text, 'me', p.id = p_pid, 'nick', p.nick,
       'done', (select count(*) from quiz_answers a where a.player_id = p.id),
       'ok', (select count(*) from quiz_answers a where a.player_id = p.id and a.ok),
-      'bn', (select count(*) from quiz_answers a where a.player_id = p.id and a.bonus)
+      'bn', (select count(*) from quiz_answers a where a.player_id = p.id and a.bonus),
+      'lt', (select round(extract(epoch from (max(a.at) - coalesce(r.started_at, r.created_at)))::numeric, 2) from quiz_answers a where a.player_id = p.id and a.ok)
     ) order by p.n), '[]'::jsonb)
   into v_players
   from (select q.*, row_number() over (order by q.joined_at) as n from quiz_players q where q.code = p_code) p;
-  return jsonb_build_object('status', r.status, 'n', jsonb_array_length(r.questions), 'bonus', r.bonus, 'players', v_players);
+  return jsonb_build_object('status', r.status, 'n', jsonb_array_length(r.questions), 'bonus', r.bonus, 'players', v_players,
+                            'tl', r.time_limit, 'left', quiz_left(r));
 end $$;
 
 -- Quiz beenden / wieder öffnen / Teilnehmer entfernen (Lehrkraft) ----------------
@@ -223,7 +244,21 @@ create or replace function quiz_set_status(p_code text, p_secret text, p_status 
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if p_status not in ('lobby','open','closed') then raise exception 'BAD_STATUS'; end if;
-  update quiz_rooms set status = p_status where code = p_code and secret = p_secret;
+  -- Startzeit: beim ersten Start; bei „Wieder öffnen“ nur neu, wenn die Zeit schon abgelaufen war
+  update quiz_rooms set status = p_status,
+         started_at = case when p_status = 'open' and (started_at is null
+                        or (time_limit is not null and now() > started_at + time_limit * interval '1 second'))
+                      then now() else started_at end
+   where code = p_code and secret = p_secret;
+  if not found then raise exception 'NO_ROOM'; end if;
+end $$;
+
+-- Zeitlimit setzen (Sekunden, 0 oder leer = unbegrenzt)
+create or replace function quiz_set_time(p_code text, p_secret text, p_seconds int)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update quiz_rooms set time_limit = case when coalesce(p_seconds, 0) <= 0 then null else least(p_seconds, 7200) end
+   where code = p_code and secret = p_secret;
   if not found then raise exception 'NO_ROOM'; end if;
 end $$;
 
@@ -268,6 +303,7 @@ end $$;
 
 -- Rechte: nur diese Funktionen darf der öffentliche Schlüssel aufrufen -----------
 revoke all on function quiz_cleanup() from public, anon, authenticated;
+revoke all on function quiz_left(quiz_rooms) from public, anon, authenticated;
 grant execute on function
   quiz_create(text, text, jsonb, text),
   quiz_join(text, text),
@@ -277,6 +313,7 @@ grant execute on function
   quiz_watch_state(text, uuid, text),
   quiz_set_status(text, text, text),
   quiz_set_bonus(text, text, boolean),
+  quiz_set_time(text, text, int),
   quiz_remove_player(text, text, uuid),
   quiz_game_score(text, uuid, text, int),
   quiz_rename_player(text, text, uuid, text),

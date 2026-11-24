@@ -61,6 +61,13 @@ In der Lehreransicht gibt es **„Ergebnis exportieren“**: lädt eine CSV-Date
 ## Personen entfernen und umbenennen (Lehrkraft)
 Im Warteraum und im Rennen hat jede Person zwei Knöpfe: **✎ Umbenennen** (neuen Spitznamen eintippen, 2 bis 20 Zeichen, bei doppeltem Namen kommt eine Meldung) und **× Entfernen**. Nützlich bei unpassenden Spitznamen. Datenbank: `quiz_rename_player` (nur mit Raum-Geheimnis der Lehrkraft) und `quiz_remove_player`. Entfernte Personen sehen „Du bist nicht mehr im Raum“ mit Knopf zum erneuten Beitreten. Wer umbenannt wurde, sieht den neuen Namen bei der Lehrkraft und in der Rennbahn sofort; auf dem eigenen Handy steht bis zum Neu-Beitritt noch der alte Name. In der Beamer-Ansicht sind die Knöpfe ausgeblendet; zusätzlich gibt es „Namen ausblenden“.
 
+## Zeitlimit, Wertung, Siegerehrung (24.11.2026)
+**Handbuch mit Screenshots:** `docs/BEIPACKZETTEL-LIVE-QUIZ.md`.
+- **SQL muss neu eingespielt werden** (`supabase/quiz.sql`, wiederholbar): neue Spalten `quiz_rooms.time_limit` und `started_at`, Funktion `quiz_set_time`, Hilfsfunktion `quiz_left`; `quiz_answer` lehnt nach Ablauf mit `TIME_UP` ab (3 s Toleranz); die Abfragen liefern `tl` (Limit), `left` (Rest-Sekunden, Serverzeit) und je Person `lt` (Sekunden vom Start bis zur letzten richtigen Antwort).
+- **Wertung:** Punkte = richtig + Aufholbonus. Gleichstand: kleineres `lt` gewinnt. Gilt in Rennbahn, Handy-Platzanzeige, Siegerehrung und CSV.
+- **Handy:** Leiste oben mit Platz, Punkten und Restzeit (Abfrage `quiz_watch_state` alle 4 s, Uhr läuft lokal). Größere Schrift.
+- **Siegerehrung:** `ceremony.js`, Knopf in der Lehrkraft-Ansicht, auf den Handys automatisch am Ende.
+
 ## Lehrkraft-Hilfen (Neues Quiz, großer QR-Code, Spiel-Demo)
 - **Alle Fragen löschen:** Auf der „Neues Quiz“-Seite räumt der Knopf die ganze Fragenliste und den Titel auf einmal ab (mit Rückfrage). Der Link „← Neues Quiz“ in der Raumansicht beginnt außerdem mit einem leeren Entwurf.
 - **QR-Code vergrößern:** In der Raumansicht auf den QR-Code tippen: Vollbild mit großem Code und Raumcode (Tippen oder Esc schließt). Gedacht für Beamer und hintere Reihen.
