@@ -9,7 +9,7 @@
   "use strict";
   const root = document.getElementById("qz");
   /* Selbstheilung bei altem Stylesheet aus dem Browser-Cache (GitHub Pages cached bis ~10 Min.) */
-  const CSS_NEED = "18";
+  const CSS_NEED = "19";
   if (getComputedStyle(document.documentElement).getPropertyValue("--quiz-css").trim() !== CSS_NEED) {
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = `quiz.css?fresh=${Date.now()}`; document.head.appendChild(l);
   }
@@ -26,6 +26,39 @@
   };
   const rid = (n = 16) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
   const norm = (t) => String(t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  /* Zahleneingabe (Fragetyp "num"): Komma oder Punkt als Dezimalzeichen, Tausenderpunkte („1.250,50“), Einheit darf dabeistehen.
+     Liefert mögliche Werte: "1.250" ist mehrdeutig (1250 oder 1,25), dann zählen beide. Gleiche Regeln in supabase/quiz.sql (quiz_num_cands). */
+  function numCands(t) {
+    let s = String(t ?? "").replace(/[\s'’   ]/g, "").replace(/−/g, "-");
+    s = s.replace(/^[^0-9.,+-]+/, "").replace(/[^0-9.,]+$/, "");
+    let neg = false;
+    if (s[0] === "-") { neg = true; s = s.slice(1); } else if (s[0] === "+") s = s.slice(1);
+    if (!/^[0-9.,]+$/.test(s) || !/[0-9]/.test(s)) return [];
+    const nd = s.split(".").length - 1, nc = s.split(",").length - 1;
+    let out = [];
+    if (nd && nc) {
+      const dec = s.lastIndexOf(".") > s.lastIndexOf(",") ? "." : ",";
+      if ((dec === "." ? nd : nc) > 1) return [];
+      out = [s.split(dec === "." ? "," : ".").join("").replace(",", ".")];
+    } else if (nc === 1) out = [s.replace(",", ".")];
+    else if (nd === 1) out = /^[1-9][0-9]{0,2}\.[0-9]{3}$/.test(s) ? [s.replace(".", ""), s] : [s];
+    else if (nd > 1 || nc > 1) { if (/^[0-9]{1,3}([.,][0-9]{3})+$/.test(s)) out = [s.replace(/[.,]/g, "")]; }
+    else out = [s];
+    return out.map(Number).filter((x) => Number.isFinite(x)).map((x) => (neg ? -x : x));
+  }
+  const numOk = (q, given) => {
+    const a = Number(q.a), d = Math.abs(Number(q.d) || 0), tol = q.dp ? (Math.abs(a) * d) / 100 : d;
+    return numCands(given).some((x) => Math.abs(x - a) <= tol + 1e-9 * Math.max(1, Math.abs(a)));
+  };
+  const fmtNum = (x) => Number(x).toLocaleString("de-DE", { maximumFractionDigits: 10 });
+  const withUnit = (v, unit) => (unit ? `${v} ${unit}` : v);
+  /* Geldbeträge mit zwei Nachkommastellen (1.062,50 €) */
+  const fmtVal = (x, unit) => (/^(€|eur|euro)$/i.test(unit || "") && !Number.isInteger(Number(x)) ? Number(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 10 }) : fmtNum(x));
+  const numText = (x, unit) => withUnit(fmtVal(x, unit), unit);
+  /* Richtige Antwort als Text (für Rückmeldung, Rückblick, Lernzettel) */
+  const solText = (q, a) => (q.t === "text" ? [].concat(a).join(" / ") : q.t === "num" ? numText(a, q.unit) : q.o[Number(a)]);
+  const tolText = (q) => (!Number(q.d) ? "genau" : q.dp ? `± ${fmtNum(q.d)} %` : `± ${numText(q.d, q.unit)}`);
 
   /* Wertung: Punkte = richtige Antworten + Aufholbonus. Bei Gleichstand gewinnt, wer die letzte richtige Antwort früher abgegeben hat (lt = Sekunden seit Start). */
   const pts = (p) => (p.ok || 0) + (p.bn || 0);
@@ -112,7 +145,7 @@
         let ex = db.answers.find((x) => x.pid === a.p_pid && x.q === a.p_q);
         if (!ex && r.tl != null && r.started && Date.now() > r.started + (r.tl + 3) * 1000) throw new Error("TIME_UP");
         if (!ex) {
-          const ok = q.t === "text" ? q.a.some((x) => norm(x) === norm(a.p_given)) : String(a.p_given) === String(q.a);
+          const ok = q.t === "text" ? q.a.some((x) => norm(x) === norm(a.p_given)) : q.t === "num" ? numOk(q, a.p_given) : String(a.p_given) === String(q.a);
           let bonus = false;
           if (ok && r.bonus) {
             const ps = db.players.filter((p) => p.code === a.p_code);
@@ -341,6 +374,9 @@
       if (q.t === "text") {
         body = `<form id="tf" autocomplete="off"><input class="input" id="tv" maxlength="120" placeholder="Deine Antwort" ${ans ? "disabled" : ""} value="${esc(ans ? ans.given : "")}">
           ${ans ? "" : `<button class="btn pink block" style="margin-top:12px" type="submit">Prüfen</button>`}</form>`;
+      } else if (q.t === "num") {
+        body = `<form id="tf" class="numform" autocomplete="off"><div class="num-in"><input class="input" id="tv" inputmode="decimal" enterkeyhint="done" maxlength="30" placeholder="Zahl eingeben" aria-label="Deine Zahl${q.unit ? " in " + esc(q.unit) : ""}" ${ans ? "disabled" : ""} value="${esc(ans ? ans.given : "")}">${q.unit ? `<span class="num-unit">${esc(q.unit)}</span>` : ""}</div>
+          ${ans ? "" : `<p class="hint num-hint">Komma oder Punkt, z. B. 1.250,50</p><button class="btn pink block" style="margin-top:12px" type="submit">Prüfen</button>`}</form>`;
       } else {
         body = `<div class="options ${ans ? "locked" : ""}">${q.o.map((o, i) => {
           let c = "";
@@ -352,7 +388,7 @@
       if (ans) {
         fb = `<div class="term"><span class="ln ${ans.ok ? "ok" : "no"}">${ans.ok ? "✓ Richtig." : "✗ Leider falsch."}</span>` +
           (ans.bonus ? `<span class="ln ok">★ Aufholbonus: doppelte Punkte!</span>` : "") +
-          (q.t === "text" && !ans.ok ? `<span class="ln">Richtig wäre: ${esc(ans.a)}</span>` : "") +
+          ((q.t === "text" || q.t === "num") && !ans.ok ? `<span class="ln">Richtig wäre: ${esc(solText(q, ans.a))}</span>` : "") +
           (ans.e ? `<span class="ln mut">${esc(ans.e)}</span>` : "") + `</div>
           <button class="btn block" id="next" style="margin-top:14px">${nextIdx() === -1 ? "Fertig" : "Weiter"}</button>`;
       }
@@ -362,7 +398,14 @@
       note = "";
       el.querySelectorAll(".option").forEach((b) => { b.onclick = () => send(idx, Number(b.dataset.i)); });
       const tf = el.querySelector("#tf");
-      if (tf && !ans) { tf.onsubmit = (ev) => { ev.preventDefault(); const v = el.querySelector("#tv").value.trim(); if (v) send(idx, v); }; el.querySelector("#tv").focus(); }
+      if (tf && !ans) {
+        tf.onsubmit = (ev) => {
+          ev.preventDefault(); const v = el.querySelector("#tv").value.trim(); if (!v) return;
+          if (q.t === "num" && !numCands(v).length) { const h = el.querySelector(".num-hint"); h.textContent = "Bitte nur eine Zahl eingeben, z. B. 12,5 oder 1.250,50."; h.classList.add("bad"); return; }
+          send(idx, v);
+        };
+        el.querySelector("#tv").focus();
+      }
       const nx = el.querySelector("#next"); if (nx) nx.onclick = () => { cur = null; render(); };
       pulse();
     }
@@ -442,7 +485,7 @@
       clearTimer();
       show(`${head}<h2 class="h2">Deine Antworten</h2><ul class="review" style="margin-top:14px">${state.questions.map((q, i) => {
         const x = state.answers[i];
-        return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(q.t === "text" ? x.a : q.o[Number(x.a)])}</span>` : ""}</span></li>`; }).join("")}</ul>
+        return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(solText(q, x.a))}</span>` : ""}</span></li>`; }).join("")}</ul>
         <p style="margin-top:16px"><button class="btn block" id="bk">Zurück</button></p>`);
       root.querySelector("#bk").onclick = () => { cur = null; render(); };
     }
@@ -450,7 +493,7 @@
     function missed() {
       return state.questions.map((q, i) => ({ q, x: state.answers[i], i })).filter((m) => !m.x || !m.x.ok);
     }
-    const rightText = (m) => (m.x ? (m.q.t === "text" ? [].concat(m.x.a).join(" / ") : m.q.o[Number(m.x.a)]) : "");
+    const rightText = (m) => (m.x ? solText(m.q, m.x.a) : "");
     function learnHtml() {
       const all = missed(), ms = all.filter((m) => m.x), open = all.filter((m) => !m.x);
       const openHtml = open.length ? `<details class="add" style="margin-top:12px"><summary>${open.length} Frage${open.length > 1 ? "n" : ""} nicht beantwortet</summary><div class="in"><ul class="review">${open.map((m) => `<li><b>–</b><span>${esc(m.q.q)}</span></li>`).join("")}</ul></div></details>` : "";
@@ -500,7 +543,7 @@
         ${learnHtml()}
         <h3 class="section-head">Alle Fragen</h3>
         <ul class="review">${state.questions.map((q, i) => { const x = state.answers[i];
-          return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(q.t === "text" ? x.a : q.o[Number(x.a)])}</span>` : ""}${x && x.e ? `<br><span class="hint">${esc(x.e)}</span>` : ""}</span></li>`; }).join("")}</ul>
+          return `<li class="${x ? (x.ok ? "ok" : "no") : ""}"><b>${x ? (x.ok ? "✓" : "✗") : "–"}</b><span>${esc(q.q)}${x && !x.ok ? `<br><span class="hint">Richtig: ${esc(solText(q, x.a))}</span>` : ""}${x && x.e ? `<br><span class="hint">${esc(x.e)}</span>` : ""}</span></li>`; }).join("")}</ul>
         <p style="margin-top:20px"><button class="btn ghost block" id="leave">Raum verlassen</button></p>`);
       try {
         applyWatch(await rpc("quiz_watch_state", { p_code: code, p_pid: me.pid, p_token: me.token }));
@@ -596,6 +639,16 @@
     row.push(cell); rows.push(row);
     return rows.filter((r) => r.some((x) => x.trim()));
   }
+  /* Zahlenfrage bauen: Lösung als Zahl oder Text ("1.250,50"), Abweichung als "0,01" (absolut) oder "1 %" (Prozent) */
+  function mkNum(q, a, unit, tol, e, meta = {}, pct = false) {
+    const av = typeof a === "number" ? a : numCands(a)[0];
+    const ts = String(tol ?? "").trim(), dp = pct || /%\s*$/.test(ts), raw = ts.replace(/%\s*$/, "").trim();
+    const dv = typeof tol === "number" ? tol : raw ? numCands(raw)[0] : 0;
+    const item = { t: "num", q, a: av, unit: String(unit ?? "").trim().slice(0, 12), d: Math.abs(dv ?? NaN), e, ...meta };
+    if (!item.unit) delete item.unit;
+    if (dp) item.dp = true;
+    return item;
+  }
   function importFile(name, txt) {
     txt = txt.replace(/^\s*```[a-z]*\s*$/gim, "").trim();
     const out = [], problems = []; let title = "";
@@ -603,6 +656,7 @@
     function checkQ(q) {
       if (!q.q || q.q.length < 3) return "Frage fehlt";
       if (q.t === "text") return q.a.length ? "" : "Antwort fehlt";
+      if (q.t === "num") return !Number.isFinite(q.a) ? "richtige Zahl fehlt oder ist keine Zahl" : !Number.isFinite(q.d) ? "Abweichung ist keine Zahl (z. B. 0,01 oder 1 %)" : "";
       if (q.o.length < 2) return "mindestens 2 Antworten";
       return Number.isInteger(q.a) && q.a >= 0 && q.a < q.o.length ? "" : "richtige Antwort fehlt oder passt nicht";
     }
@@ -614,7 +668,9 @@
         const o = x.o ?? x.options ?? x.antworten, a = x.a ?? x.answer ?? x.richtig;
         const src = String(x.s ?? x.thema ?? "").trim().slice(0, 120), url = /^https:\/\//.test(String(x.u ?? "")) ? String(x.u).slice(0, 300) : "";
         const meta = src ? (url ? { s: src, u: url } : { s: src }) : {};
-        if (Array.isArray(o)) add({ t: "mc", q, o: o.map((v) => String(v).trim()), a: Number(a), e, ...meta }, e, i + 1);
+        const ty = String(x.t ?? x.typ ?? x.type ?? "").toLowerCase();
+        if (["num", "zahl", "number"].includes(ty)) add(mkNum(q, a, x.unit ?? x.einheit, x.tol ?? x.toleranz ?? x.abweichung ?? x.d, e, meta, x.dp === true), e, i + 1);
+        else if (Array.isArray(o)) add({ t: "mc", q, o: o.map((v) => String(v).trim()), a: Number(a), e, ...meta }, e, i + 1);
         else add({ t: "text", q, a: [].concat(a ?? []).map((v) => String(v).trim()).filter(Boolean), e, ...meta }, e, i + 1);
       });
     } else {
@@ -622,7 +678,8 @@
       if (rows.length && /^frage$/i.test(rows[0][0].trim())) rows.shift();
       rows.forEach((r, i) => {
         const c = r.map((v) => v.trim()), q = c[0], e = c[7] || "", key = (c[5] || "").toUpperCase();
-        if (key === "TEXT" || key === "KURZ") add({ t: "text", q, a: (c[1] || "").split("|").map((v) => v.trim()).filter(Boolean), e }, e, i + 1);
+        if (key === "ZAHL" || key === "NUM") add(mkNum(q, c[1] || "", c[2], c[3], e), e, i + 1);
+        else if (key === "TEXT" || key === "KURZ") add({ t: "text", q, a: (c[1] || "").split("|").map((v) => v.trim()).filter(Boolean), e }, e, i + 1);
         else {
           const o = c.slice(1, 5).filter(Boolean), k = "ABCD".indexOf(key[0] || "?");
           const idx = k >= 0 ? k : Number(key) - 1;
@@ -635,7 +692,8 @@
   const TEMPLATE = "Frage;Antwort A;Antwort B;Antwort C;Antwort D;Richtig;;Erklärung\n" +
     "Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;A;;Berlin ist seit 1990 Hauptstadt.\n" +
     "Die Erde ist eine Scheibe.;Richtig;Falsch;;;B;;Sie ist (fast) eine Kugel.\n" +
-    "Wie heißt die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Bei TEXT stehen mehrere richtige Schreibweisen in Spalte B, getrennt mit |.\n";
+    "Wie heißt die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Bei TEXT stehen mehrere richtige Schreibweisen in Spalte B, getrennt mit |.\n" +
+    "Ein Artikel kostet netto 1.050,84 €. Wie hoch ist der Bruttopreis bei 19 % USt?;1250,50;€;0,01;;ZAHL;;Bei ZAHL: Spalte B richtige Zahl, C Einheit, D erlaubte Abweichung (0,01 oder 1 %).\n";
 
   const KI_PROMPT = `Du bist Lehrkraft-Assistenz und erstellst ein kurzes Wiederholungsquiz für den Stundenende-Check.
 
@@ -649,15 +707,17 @@ Regeln:
 - Pro Frage genau EINE richtige Antwort und 2 bis 4 Antwortmöglichkeiten. Falsche Antworten sollen typische Fehler zeigen.
 - Keine Antworten wie "alle richtig" oder "keine richtig". Die richtige Antwort nicht immer an dieselbe Stelle setzen.
 - Spalte "Erklärung": ein kurzer Satz, warum die Antwort stimmt.
-- Für Fachbegriffe oder Zahlen darfst du einzelne Kurzantwort-Fragen einbauen (Richtig = TEXT, richtige Schreibweisen in Spalte B, getrennt mit |).
+- Für Fachbegriffe darfst du einzelne Kurzantwort-Fragen einbauen (Richtig = TEXT, richtige Schreibweisen in Spalte B, getrennt mit |).
+- Für Rechenaufgaben nimm Zahlenfragen (Richtig = ZAHL): Spalte B die richtige Zahl (z. B. 1250,50), Spalte C die Einheit (z. B. €, daN, %), Spalte D die erlaubte Abweichung für Rundungen (z. B. 0,01 oder 1 %). Rechne jede Lösung zweimal nach.
 
 Ausgabeformat: NUR eine CSV-Tabelle in einem Codeblock, Trennzeichen Semikolon, keine Zusatztexte. Erste Zeile genau so:
 Frage;Antwort A;Antwort B;Antwort C;Antwort D;Richtig;;Erklärung
-Danach eine Zeile pro Frage. In der Spalte "Richtig" steht A, B, C oder D (bei Kurzantwort TEXT). Die siebte Spalte bleibt leer.
+Danach eine Zeile pro Frage. In der Spalte "Richtig" steht A, B, C oder D (bei Kurzantwort TEXT, bei Rechenaufgabe ZAHL). Die siebte Spalte bleibt leer.
 
 Beispiel:
 Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;A;;Berlin ist seit 1990 Hauptstadt.
-Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Der Arbeitgeber beendet das Arbeitsverhältnis.`;
+Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | ordentliche Kündigung;;;;TEXT;;Der Arbeitgeber beendet das Arbeitsverhältnis.
+Eine Ware kostet 80 € netto. Wie hoch ist der Bruttopreis bei 19 % USt?;95,20;€;0,01;;ZAHL;;80 € · 1,19 = 95,20 €.`;
 
   /* Demo-Quiz (für Lehrkraft zum Ausprobieren): Deutsche Geschichte, 10 Fragen */
   const DEMO_TITLE = "Deutsche Geschichte";
@@ -674,13 +734,24 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     { t: "mc", q: "In welchem Jahr wurde Deutschland wiedervereinigt?", o: ["1989", "1990", "1991", "1995"], a: 1, e: "Die Mauer fiel am 9. November 1989, die Einheit folgte am 3. Oktober 1990." }
   ];
 
+  /* Beispiel für Zahlenfragen (Rechenaufgaben), frei erfunden */
+  const NUM_TITLE = "Rechenaufgaben";
+  const NUM_QS = [
+    { t: "num", q: "Eine Ware kostet 80,00 € netto. Wie hoch ist der Bruttopreis bei 19 % Umsatzsteuer?", a: 95.2, d: 0.01, unit: "€", e: "80,00 € · 1,19 = 95,20 €" },
+    { t: "num", q: "Listenpreis 1.250,00 €, Rabatt 15 %. Wie hoch ist der Zieleinkaufspreis?", a: 1062.5, d: 0.01, unit: "€", e: "1.250,00 € − 187,50 € Rabatt = 1.062,50 €" },
+    { t: "num", q: "Auf 1.062,50 € gibt es 2 % Skonto. Wie viel Euro Skonto sind das?", a: 21.25, d: 0.01, unit: "€", e: "1.062,50 € · 0,02 = 21,25 €" },
+    { t: "num", q: "Von 25 gelieferten Paletten sind 3 beschädigt. Wie viel Prozent sind beschädigt?", a: 12, d: 0.1, unit: "%", e: "3 : 25 · 100 = 12 %" },
+    { t: "num", q: "Wareneinsatz 240.000 €, durchschnittlicher Lagerbestand 40.000 €. Wie hoch ist die Lagerumschlagshäufigkeit?", a: 6, d: 0, e: "240.000 € : 40.000 € = 6" },
+    { t: "num", q: "Eine Ladung hat eine Gewichtskraft von 2.000 daN, der Gleitreibbeiwert ist 0,3. Wie groß ist die Reibungskraft?", a: 600, d: 0, unit: "daN", e: "2.000 daN · 0,3 = 600 daN" }
+  ];
+
   /* Antwortreihenfolge mischen, damit die richtige Antwort nicht immer an derselben Stelle steht.
      Richtig/Falsch, Kurzantworten und Fragen mit „alle/keine …“ bleiben unverändert, reine Zahlen werden aufsteigend sortiert. */
   const rndInt = (n) => { const a = new Uint32Array(1); (window.crypto || { getRandomValues: (x) => { x[0] = Math.random() * 4294967296; } }).getRandomValues(a); return a[0] % n; };
   function shuffleQs(qs) {
     let last = -1, streak = 0;
     return qs.map((q) => {
-      if (q.t === "text" || !Array.isArray(q.o) || q.o.length < 3) { last = -1; streak = 0; return q; }
+      if (q.t === "text" || q.t === "num" || !Array.isArray(q.o) || q.o.length < 3) { last = -1; streak = 0; return q; }
       if (q.o.some((o) => /^\s*(alle|keine|beide|keiner)\b|\b(alle|keine) (genannten|oben|der)\b/i.test(o))) return q;
       const right = q.o[q.a], num = (o) => parseFloat(String(o).replace(/\./g, "").replace(",", "."));
       let o;
@@ -713,6 +784,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
         <ol class="chosen" id="chosen"></ol>
         <div class="row"><button class="btn ghost sm" id="clearQ" type="button">Alle Fragen löschen</button><button class="btn ghost sm" id="gameDemo" type="button">Spiel ausprobieren (Demo)</button></div>
         <button class="btn ghost sm" id="demoQ" type="button">Demo-Quiz laden: Deutsche Geschichte (10 Fragen)</button>
+        <button class="btn ghost sm" id="demoN" type="button">Beispiel laden: Rechenaufgaben (6 Zahlenfragen)</button>
         <details class="add" id="dCourse"><summary>Aus einem Kurs wählen</summary><div class="in" id="courseBox"><p class="hint">Lade Kurse …</p></div></details>
         <details class="add" id="dKi"><summary>Anleitung: Quiz mit KI erstellen</summary><div class="in" id="kiBox"></div></details>
         <details class="add" id="dFile"><summary>Quiz aus Datei laden</summary><div class="in" id="fileBox"></div></details>
@@ -724,7 +796,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     const chosen = el.querySelector("#chosen");
     function paint() {
       el.querySelector("#cnt").textContent = `${draft.qs.length} von max. ${MAX_Q}`;
-      chosen.innerHTML = draft.qs.length ? draft.qs.map((q, i) => `<li><span class="n">${i + 1}</span><span class="t"><span class="tag">${q.t === "text" ? "Text" : q.o.length === 2 ? "R/F" : "MC"}</span>${esc(q.q)}</span><button data-x="${i}" aria-label="Frage entfernen">×</button></li>`).join("")
+      chosen.innerHTML = draft.qs.length ? draft.qs.map((q, i) => `<li><span class="n">${i + 1}</span><span class="t"><span class="tag">${q.t === "text" ? "Text" : q.t === "num" ? "Zahl" : q.o.length === 2 ? "R/F" : "MC"}</span>${esc(q.q)}${q.t === "num" ? ` <span class="hint">= ${esc(numText(q.a, q.unit))} · ${esc(tolText(q))}</span>` : ""}</span><button data-x="${i}" aria-label="Frage entfernen">×</button></li>`).join("")
         : `<li class="empty" style="display:block">Noch keine Fragen. Wähle unten aus einem Kurs oder schreibe eigene.</li>`;
       const cq = el.querySelector("#clearQ"); if (cq) cq.style.display = draft.qs.length ? "" : "none";
       chosen.querySelectorAll("[data-x]").forEach((b) => { b.onclick = () => { draft.qs.splice(Number(b.dataset.x), 1); save(); paint(); }; });
@@ -738,6 +810,10 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     el.querySelector("#demoQ").onclick = () => {
       if (!draft.title.trim()) { draft.title = DEMO_TITLE; el.querySelector("#title").value = DEMO_TITLE; }
       add(structuredClone(DEMO_QS));
+    };
+    el.querySelector("#demoN").onclick = () => {
+      if (!draft.title.trim()) { draft.title = NUM_TITLE; el.querySelector("#title").value = NUM_TITLE; }
+      add(structuredClone(NUM_QS));
     };
 
     /* Kurs-Auswahl */
@@ -791,7 +867,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
 
     /* Datei */
     const fb = el.querySelector("#fileBox");
-    fb.innerHTML = `<p class="hint" style="margin:0">Excel-Datei als <b>CSV</b> speichern (Spalten: Frage, Antwort A–D, Richtig als A–D, Erklärung) oder eine <b>JSON</b>-Datei. Die Vorlage zeigt das Format.</p>
+    fb.innerHTML = `<p class="hint" style="margin:0">Excel-Datei als <b>CSV</b> speichern (Spalten: Frage, Antwort A–D, Richtig als A–D, Erklärung; Rechenaufgaben mit ZAHL, siehe Vorlage) oder eine <b>JSON</b>-Datei. Die Vorlage zeigt das Format.</p>
       <div class="row"><button class="btn ghost sm" id="tpl" type="button">Vorlage (CSV)</button><label class="btn pink sm grow filebtn">Datei wählen<input type="file" id="fi" aria-label="Quiz-Datei wählen"></label></div>
       <button class="btn ghost sm" id="ready" type="button">Fertiges Quiz laden: Sechseck und Sozialpolitik (36 Fragen)</button><div id="ferr" aria-live="polite"></div>`;
     fb.querySelector("#tpl").onclick = () => {
@@ -827,7 +903,7 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
 
     /* Eigene Frage */
     const own = el.querySelector("#ownBox");
-    own.innerHTML = `<label class="field"><span>Art</span><select class="input" id="ot"><option value="mc">Mehrfachauswahl (4 Antworten)</option><option value="tf">Richtig oder falsch</option><option value="text">Kurzantwort</option></select></label>
+    own.innerHTML = `<label class="field"><span>Art</span><select class="input" id="ot"><option value="mc">Mehrfachauswahl (4 Antworten)</option><option value="tf">Richtig oder falsch</option><option value="text">Kurzantwort</option><option value="num">Zahl (Rechenaufgabe)</option></select></label>
       <label class="field"><span>Frage</span><textarea class="input" id="oq" maxlength="250"></textarea></label>
       <div id="oo"></div>
       <label class="field"><span>Erklärung (optional, sieht man nach der Antwort)</span><input class="input" id="oe" maxlength="200" style="font:500 15px/1 var(--grot)"></label>
@@ -835,10 +911,24 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
     const ot = own.querySelector("#ot"), oo = own.querySelector("#oo");
     function ownOpts() {
       const t = ot.value;
-      if (t === "text") oo.innerHTML = `<label class="field"><span>Richtige Antwort (weitere Schreibweisen mit | trennen)</span><input class="input" id="ta" maxlength="120" style="font:500 15px/1 var(--grot)" placeholder="z. B. Kündigung | Kuendigung"></label><p class="hint">Groß-/Kleinschreibung und Leerzeichen am Rand zählen nicht.</p>`;
+      if (t === "num") {
+        oo.innerHTML = `<div class="num-edit"><label class="field"><span>Richtige Zahl</span><input class="input" id="na" inputmode="decimal" maxlength="30" placeholder="z. B. 1.250,50"></label>
+          <label class="field"><span>Einheit (optional)</span><input class="input" id="nu" maxlength="12" placeholder="€, daN, %"></label></div>
+          <div class="num-edit"><label class="field"><span>Erlaubte Abweichung</span><input class="input" id="nd" inputmode="decimal" maxlength="12" placeholder="0" value="0"></label>
+          <label class="field"><span>Abweichung in</span><select class="input" id="nm"><option value="abs">± absolut</option><option value="pct">± Prozent</option></select></label></div>
+          <p class="hint" id="nprev">Schüler/innen dürfen Komma oder Punkt tippen, auch mit Tausenderpunkt (1.250,50). Abweichung 0 = genau diese Zahl.</p>`;
+        const prev = () => {
+          const it = numItem(); const p = oo.querySelector("#nprev");
+          if (!Number.isFinite(it.a)) { p.textContent = "Schüler/innen dürfen Komma oder Punkt tippen, auch mit Tausenderpunkt (1.250,50). Abweichung 0 = genau diese Zahl."; return; }
+          const tol = it.dp ? (Math.abs(it.a) * it.d) / 100 : it.d;
+          p.textContent = !Number.isFinite(tol) ? "Die Abweichung ist keine Zahl." : tol ? `Richtig von ${numText(+(it.a - tol).toFixed(10), it.unit)} bis ${numText(+(it.a + tol).toFixed(10), it.unit)}.` : `Richtig ist genau ${numText(it.a, it.unit)}.`;
+        };
+        oo.querySelectorAll("input,select").forEach((x) => { x.oninput = prev; x.onchange = prev; });
+      } else if (t === "text") oo.innerHTML = `<label class="field"><span>Richtige Antwort (weitere Schreibweisen mit | trennen)</span><input class="input" id="ta" maxlength="120" style="font:500 15px/1 var(--grot)" placeholder="z. B. Kündigung | Kuendigung"></label><p class="hint">Groß-/Kleinschreibung und Leerzeichen am Rand zählen nicht.</p>`;
       else { const n = t === "tf" ? 2 : 4; oo.innerHTML = `<span class="field"><span style="display:block;font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-bottom:8px">Antworten · richtige markieren</span></span><div style="display:grid;gap:8px">${Array.from({ length: n }, (_, i) =>
         `<label class="opt-edit"><input type="radio" name="ok" value="${i}" ${i === 0 ? "checked" : ""}>${t === "tf" ? `<b style="font-size:16px">${i ? "Falsch" : "Richtig"}</b>` : `<input class="input" maxlength="120" data-o="${i}" placeholder="Antwort ${"ABCD"[i]}">`}</label>`).join("")}</div>`; }
     }
+    const numItem = () => mkNum("", own.querySelector("#na").value, own.querySelector("#nu").value, own.querySelector("#nd").value.trim() + (own.querySelector("#nm").value === "pct" ? " %" : ""), "");
     ot.onchange = ownOpts; ownOpts();
     own.querySelector("#oadd").onclick = () => {
       const err = own.querySelector("#oerr"); err.innerHTML = "";
@@ -846,7 +936,12 @@ Wie nennt man die Kündigung durch den Arbeitgeber?;Arbeitgeberkündigung | orde
       const fail = (m) => { err.innerHTML = `<p class="msg">${m}</p>`; };
       if (q.length < 3) return fail("Schreibe eine Frage.");
       let item;
-      if (t === "text") {
+      if (t === "num") {
+        const it = numItem();
+        if (!Number.isFinite(it.a)) return fail("Trage die richtige Zahl ein, z. B. 1250,50.");
+        if (!Number.isFinite(it.d)) return fail("Die Abweichung muss eine Zahl sein, z. B. 0,01.");
+        item = { ...it, q, e };
+      } else if (t === "text") {
         const a = own.querySelector("#ta").value.split("|").map((x) => x.trim()).filter(Boolean);
         if (!a.length) return fail("Trage die richtige Antwort ein.");
         item = { t: "text", q, a, e };

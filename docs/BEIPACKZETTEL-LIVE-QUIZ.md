@@ -1,6 +1,6 @@
 # Beipackzettel: Live-Quiz
 
-Stand: 24.11.2026 · Adresse: https://quiz.yannikbrand.eu · Für Lehrkräfte und Schüler/innen
+Stand: 25.11.2026 · Adresse: https://quiz.yannikbrand.eu · Für Lehrkräfte und Schüler/innen
 (Die Bilder zeigen den Demo-Modus mit erfundenen Spitznamen. Im echten Betrieb sieht es genauso aus.)
 
 **Kurz gesagt:** Du legst einen Raum an, die Klasse tritt mit einem Code oder QR-Code bei, alle beantworten Fragen am Handy, und alle sehen live, wer vorne liegt. Am Ende gibt es eine Siegerehrung. Es werden nur Spitznamen gespeichert, keine echten Namen. Nach 24 Stunden ist alles gelöscht.
@@ -19,6 +19,19 @@ Auf der Seite „Neues Quiz“ gibst du einen Titel ein und wählst Fragen aus: 
 - **Antworten mischen** sorgt dafür, dass die richtige Antwort nicht immer an derselben Stelle steht.
 
 ![Spiel-Demo](img/02-spiel-demo.jpg)
+
+### 1a. Rechenaufgaben mit Zahleneingabe (neu)
+Für Kaufmännisches Rechnen, Lagerkennzahlen oder Ladungssicherung: Unter „Eigene Frage schreiben“ die Art **Zahl (Rechenaufgabe)** wählen.
+
+![Zahlenfrage anlegen](img/14-zahl-editor.jpg)
+
+- **Richtige Zahl:** z. B. `1.250,49` oder `1250.49`.
+- **Einheit** (optional): z. B. €, daN, %, kg. Sie steht auf dem Handy neben dem Eingabefeld.
+- **Erlaubte Abweichung:** damit Rundungsunterschiede als richtig zählen. Entweder **± absolut** (z. B. 0,01 €) oder **± Prozent** (z. B. 1 % der Lösung). 0 heißt: genau diese Zahl. Unter den Feldern steht sofort, welcher Bereich als richtig zählt.
+- **Beispiel laden: Rechenaufgaben (6 Zahlenfragen)** lädt ein fertiges Beispiel zum Ausprobieren (Bruttopreis, Rabatt, Skonto, Prozent, Lagerumschlag, Reibungskraft).
+- **Per Datei oder KI:** In der CSV-Tabelle in der Spalte „Richtig“ `ZAHL` eintragen, Spalte B = richtige Zahl, C = Einheit, D = Abweichung (`0,01` oder `1 %`). Die Vorlage und der KI-Prompt enthalten ein Beispiel.
+- In der Fragenliste steht bei jeder Zahlenfrage die Lösung und die Abweichung (z. B. „= 95,20 € · ± 0,01 €“), damit du sie vor dem Start prüfen kannst.
+- Im Rennen zählt eine richtige Zahl genau wie jede andere richtige Antwort.
 
 ### 2. Raum öffnen und Warteraum
 Mit „Raum öffnen“ bekommst du einen 5-stelligen Code und einen QR-Code. Die Klasse tritt bei, spielt im Warteraum das Hürdenritt-Spiel und du siehst, wer da ist.
@@ -60,6 +73,10 @@ Der Knopf **🏆 Siegerehrung** (wird rosa, sobald alle fertig sind, die Zeit ab
 
 ![Frage mit Platz und Punkten](img/07-schueler-frage.jpg)
 
+   **Bei Rechenaufgaben** tippst du die Zahl ein, es öffnet sich die Zahlentastatur. Komma oder Punkt sind beide erlaubt, auch mit Tausenderpunkt (`1.250,50`). Die Einheit musst du nicht mittippen. Tippst du keine Zahl ein (z. B. Buchstaben), kommt ein Hinweis und dein Versuch ist **nicht** verbraucht. Bei falscher Zahl siehst du die richtige Lösung und den Rechenweg.
+
+![Zahl eingeben](img/15-zahl-handy-eingabe.jpg) ![Falsche Zahl](img/16-zahl-handy-falsch.jpg) ![Keine Zahl](img/17-zahl-handy-keine-zahl.jpg)
+
 4. Bist du fertig, siehst du das Rennen der anderen live.
 
 ![Fertig](img/08-schueler-fertig.jpg)
@@ -84,6 +101,10 @@ Der Knopf **🏆 Siegerehrung** (wird rosa, sobald alle fertig sind, die Zeit ab
 - **Datenschutz:** Nur Spitznamen, keine Konten, nach 24 Stunden gelöscht.
 
 ## Für die Technik (Wartung)
+
+- **Neu (25.11.2026): Fragetyp Zahl. SQL muss in Supabase ausgeführt werden** (`supabase/quiz.sql`, wiederholbar). Neue Hilfsfunktionen `quiz_num_cands` und `quiz_num_ok`, `quiz_answer` bewertet Fragen mit `t: "num"`. Ohne das SQL würden Zahlenantworten auf dem Server meist als falsch gewertet. Datenformat: `{ "t": "num", "q": "…", "a": 1250.5, "d": 0.01, "dp": false, "unit": "€", "e": "…" }` (`d` = erlaubte Abweichung, `dp: true` = Abweichung in Prozent). Keine neuen personenbezogenen Daten.
+
+![Rennen mit Rechenaufgaben am Beamer](img/18-zahl-lehrer-rennen.jpg)
 
 - **Neu in dieser Version: SQL muss einmal ausgeführt werden.** Die ganze Datei `supabase/quiz.sql` im Supabase-SQL-Editor ausführen (sie ist wiederholbar). Sie ergänzt Zeitlimit (`time_limit`, `started_at`, `quiz_set_time`) und die Schnelligkeit (`lt`) in den Abfragen. Ohne dieses SQL laufen Quiz und Spiel weiter, nur das Zeitlimit und die Schnelligkeit bei Gleichstand fehlen.
 - Dateien: `quiz.js` (Ansichten, Demo-Backend), `race.js` (Rennbahn), `ceremony.js` (Siegerehrung), `game.js` (Spiel), `quiz.css`.

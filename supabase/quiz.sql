@@ -65,6 +65,50 @@ revoke all on quiz_config, quiz_rooms, quiz_players, quiz_answers from anon, aut
 create or replace function quiz_norm(t text) returns text
 language sql immutable as $$ select lower(btrim(regexp_replace(coalesce(t,''), '\s+', ' ', 'g'))) $$;
 
+-- Zahleneingabe (Fragetyp 'num'): mögliche Werte einer getippten Zahl.
+-- Komma oder Punkt als Dezimalzeichen, Tausenderpunkte ('1.250,50'), Einheit darf dabeistehen.
+-- '1.250' ist mehrdeutig (1250 oder 1,25), dann zählen beide. Gleiche Regeln wie numCands in quiz.js.
+create or replace function quiz_num_cands(t text) returns numeric[]
+language plpgsql immutable as $$
+declare s text; neg boolean := false; nd int; nc int; dec text; res text[];
+begin
+  s := regexp_replace(coalesce(t, ''), '[[:space:]''’' || chr(160) || chr(8201) || chr(8239) || ']', '', 'g');
+  s := replace(s, '−', '-');
+  s := regexp_replace(s, '^[^0-9.,+-]+', '');
+  s := regexp_replace(s, '[^0-9.,]+$', '');
+  if left(s, 1) = '-' then neg := true; s := substr(s, 2);
+  elsif left(s, 1) = '+' then s := substr(s, 2); end if;
+  if s !~ '^[0-9.,]+$' or s !~ '[0-9]' then return '{}'; end if;
+  nd := length(s) - length(replace(s, '.', ''));
+  nc := length(s) - length(replace(s, ',', ''));
+  if nd > 0 and nc > 0 then
+    dec := case when strpos(reverse(s), '.') < strpos(reverse(s), ',') then '.' else ',' end;
+    if (case when dec = '.' then nd else nc end) > 1 then return '{}'; end if;
+    res := array[replace(replace(s, case when dec = '.' then ',' else '.' end, ''), ',', '.')];
+  elsif nc = 1 then res := array[replace(s, ',', '.')];
+  elsif nd = 1 then
+    res := case when s ~ '^[1-9][0-9]{0,2}\.[0-9]{3}$' then array[replace(s, '.', ''), s] else array[s] end;
+  elsif nd > 1 or nc > 1 then
+    if s !~ '^[0-9]{1,3}([.,][0-9]{3})+$' then return '{}'; end if;
+    res := array[regexp_replace(s, '[.,]', '', 'g')];
+  else res := array[s];
+  end if;
+  return (select array_agg(case when neg then -x::numeric else x::numeric end) from unnest(res) x);
+exception when others then return '{}';
+end $$;
+
+-- Zahlenfrage richtig? a = Lösung, d = erlaubte Abweichung (absolut, bei dp = true in Prozent von a)
+create or replace function quiz_num_ok(qq jsonb, p_given text) returns boolean
+language plpgsql immutable as $$
+declare v_a numeric; v_d numeric; v_tol numeric;
+begin
+  v_a := (qq->>'a')::numeric;
+  v_d := abs(coalesce((qq->>'d')::numeric, 0));
+  v_tol := case when coalesce((qq->>'dp')::boolean, false) then abs(v_a) * v_d / 100 else v_d end;
+  return exists (select 1 from unnest(quiz_num_cands(p_given)) x where abs(x - v_a) <= v_tol);
+exception when others then return false;
+end $$;
+
 -- Fragen ohne Lösung (für Schüler/innen)
 create or replace function quiz_strip(qs jsonb) returns jsonb
 language sql immutable as $$
@@ -156,7 +200,9 @@ begin
      and now() > r.started_at + (r.time_limit + 3) * interval '1 second' then
     raise exception 'TIME_UP';
   end if;
-  if qq->>'t' = 'text' then
+  if qq->>'t' = 'num' then
+    v_ok := quiz_num_ok(qq, p_given #>> '{}');
+  elsif qq->>'t' = 'text' then
     v_ok := exists (select 1 from jsonb_array_elements_text(qq->'a') x where quiz_norm(x) = quiz_norm(p_given #>> '{}'));
   else
     v_ok := (p_given #>> '{}') = (qq->>'a');
@@ -304,6 +350,8 @@ end $$;
 -- Rechte: nur diese Funktionen darf der öffentliche Schlüssel aufrufen -----------
 revoke all on function quiz_cleanup() from public, anon, authenticated;
 revoke all on function quiz_left(quiz_rooms) from public, anon, authenticated;
+revoke all on function quiz_num_cands(text) from public, anon, authenticated;
+revoke all on function quiz_num_ok(jsonb, text) from public, anon, authenticated;
 grant execute on function
   quiz_create(text, text, jsonb, text),
   quiz_join(text, text),
