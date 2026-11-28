@@ -28,6 +28,7 @@ alter table quiz_rooms add column if not exists bonus boolean not null default f
 -- Quiz auf Zeit: Zeitlimit in Sekunden (leer = unbegrenzt), Startzeit wird beim Start durch die Lehrkraft gesetzt
 alter table quiz_rooms add column if not exists time_limit int;
 alter table quiz_rooms add column if not exists started_at timestamptz;
+alter table quiz_rooms add column if not exists game_event int not null default 0;   -- Zähler „Goldrausch für alle“ im Warte-Spiel
 
 create table if not exists quiz_players (
   id uuid primary key default gen_random_uuid(),
@@ -240,7 +241,7 @@ begin
   return jsonb_build_object('status', r.status, 'title', r.title,
                             'questions', quiz_strip(r.questions), 'answers', v_answers,
                             'count', (select count(*) from quiz_players where code = p_code),
-                            'tl', r.time_limit, 'left', quiz_left(r));
+                            'tl', r.time_limit, 'left', quiz_left(r), 'ge', r.game_event);
 end $$;
 
 -- Live-Stand (Lehrkraft) ------------------------------------------------------
@@ -315,6 +316,14 @@ begin
   if not found then raise exception 'NO_ROOM'; end if;
 end $$;
 
+-- Goldrausch für alle (nur im Warteraum): erhöht den Zähler, die Handys starten den Münzregen
+create or replace function quiz_game_rush(p_code text, p_secret text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from quiz_rooms where code = p_code and secret = p_secret) then raise exception 'NO_ROOM'; end if;
+  update quiz_rooms set game_event = game_event + 1 where code = p_code and secret = p_secret and status = 'lobby';
+end $$;
+
 create or replace function quiz_game_score(p_code text, p_pid uuid, p_token text, p_score int)
 returns void language plpgsql security definer set search_path = public as $$
 begin
@@ -362,6 +371,7 @@ grant execute on function
   quiz_set_status(text, text, text),
   quiz_set_bonus(text, text, boolean),
   quiz_set_time(text, text, int),
+  quiz_game_rush(text, text),
   quiz_remove_player(text, text, uuid),
   quiz_game_score(text, uuid, text, int),
   quiz_rename_player(text, text, uuid, text),
