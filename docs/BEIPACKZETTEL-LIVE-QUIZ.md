@@ -1,6 +1,6 @@
 # Beipackzettel: Live-Quiz
 
-Stand: 25.11.2026 · Adresse: https://quiz.yannikbrand.eu · Für Lehrkräfte und Schüler/innen
+Stand: 28.11.2026 · Adresse: https://quiz.yannikbrand.eu · Für Lehrkräfte und Schüler/innen
 (Die Bilder zeigen den Demo-Modus mit erfundenen Spitznamen. Im echten Betrieb sieht es genauso aus.)
 
 **Kurz gesagt:** Du legst einen Raum an, die Klasse tritt mit einem Code oder QR-Code bei, alle beantworten Fragen am Handy, und alle sehen live, wer vorne liegt. Am Ende gibt es eine Siegerehrung. Es werden nur Spitznamen gespeichert, keine echten Namen. Nach 24 Stunden ist alles gelöscht.
@@ -46,6 +46,9 @@ Mit „Raum öffnen“ bekommst du einen 5-stelligen Code und einen QR-Code. Die
 - **Aufholbonus:** Wer weit hinten liegt, bekommt für richtige Antworten doppelte Punkte (ab 4 Personen). Siehe „Wie wird gewertet?“ unten.
 - **Namen ausblenden** zeigt „SuS 1, 2 …“ statt der Spitznamen (für den Beamer).
 - **Musik:** Ruhige Hintergrundmusik, nur auf deinem Gerät, Standard aus.
+- **💰 Goldrausch für alle (neu):** Im Warte-Spiel regnet es bei allen sieben Sekunden lang Münzen. Gut, wenn die Klasse noch auf Nachzügler wartet. Danach hat der Knopf 30 Sekunden Pause.
+
+![Goldrausch-Knopf im Warteraum](img/22-lehrer-goldrausch.jpg)
 
 ### 3. Quiz starten und beobachten
 „Quiz starten“ schickt alle los (Countdown 3-2-1). Du siehst die Rennbahn: Jede richtige Antwort bringt das Pferd ein Stück näher ans Ziel. Mit **Beamer-Ansicht** wird alles groß und ohne Bedienknöpfe gezeigt.
@@ -65,7 +68,7 @@ Der Knopf **🏆 Siegerehrung** (wird rosa, sobald alle fertig sind, die Zeit ab
 ## Für Schüler/innen (Handy)
 
 1. Seite öffnen, Code eingeben oder QR-Code scannen, **Spitznamen** wählen (nicht den echten Namen).
-2. Im Warteraum das Spiel spielen: Tippen = springen, Halten = höher. Auf Gegner springen gibt +25. Abgründe überspringen, Münzen sammeln.
+2. Im Warteraum das Spiel spielen (siehe „Das Warte-Spiel“ unten).
 
 ![Beitreten](img/03-beitreten.jpg) ![Warteraum Handy](img/04-schueler-warteraum.jpg)
 
@@ -87,6 +90,33 @@ Der Knopf **🏆 Siegerehrung** (wird rosa, sobald alle fertig sind, die Zeit ab
 
 ---
 
+## Das Warte-Spiel „Hürdenritt“ (neu: Level, Gegner, Power-ups)
+
+![Spiel-Start](img/19-spiel-start.jpg)
+
+- **Steuerung:** Rechts aufs Bild tippen = springen (halten = höher). **Links tippen = rutschen.** In der Luft bringt dich links tippen schnell nach unten. Nach unten wischen geht auch. Am Computer: Leertaste und Pfeil runter.
+- Am Anfang zeigt das Spiel die beiden Tipp-Zonen:
+
+![Tipp-Zonen](img/20-spiel-zonen.jpg)
+
+- **Level:** Reite bis zur **Zielflagge**. Dann kommt das nächste Level in einer neuen Welt (Steppe, Stadt, Cyberpunk, Weltraum), dazu +50 Punkte und ein Herz. Oben links stehen Level und ein Balken bis zur Flagge.
+- **Hindernisse und Gegner:**
+  - **Hängender Balken** (mit Pfeil ↓): nur drunter durchrutschen.
+  - **Sprungfeder:** draufreiten, dann fliegt das Pferd sehr hoch, oben hängen Münzen.
+  - **Rollendes Fass:** drüberspringen, nicht draufspringen.
+  - **Frosch** hüpft, **Sturzvogel** stürzt herab: beide kann man von oben anspringen (+25).
+  - Dazu bewegte Plattformen, Kisten, Zäune, Abgründe und die bekannten Gegner.
+- **Power-ups** (in Blasen): **Magnet** zieht Münzen an, **Schild** fängt einen Treffer ab, **Stern** macht kurz unverwundbar, **Doppelsprung** erlaubt einen zweiten Sprung in der Luft. Oben rechts siehst du, wie lange sie noch halten.
+- **Missionen:** Unter dem Spiel stehen drei Aufgaben, z. B. „3× unter Balken rutschen“. Jede geschaffte Mission gibt +100.
+- **Goldrausch:** Ab und zu regnet es sieben Sekunden lang Münzen. Die Lehrkraft kann ihn auch für alle auslösen.
+- Immer noch **ohne Ton**.
+
+![Level 1 Steppe](img/21-spiel-welt-1.jpg) ![Level 2 Stadt](img/21-spiel-welt-2.jpg)
+![Level 3 Cyberpunk](img/21-spiel-welt-3.jpg) ![Level 4 Weltraum](img/21-spiel-welt-4.jpg)
+![Goldrausch](img/23-spiel-goldrausch.jpg)
+
+---
+
 ## Wie wird gewertet?
 
 - **Punkte = richtige Antworten (+ Bonuspunkte, wenn der Aufholbonus an ist).** Falsche Antworten geben keine Minuspunkte.
@@ -102,6 +132,7 @@ Der Knopf **🏆 Siegerehrung** (wird rosa, sobald alle fertig sind, die Zeit ab
 
 ## Für die Technik (Wartung)
 
+- **Neu (28.11.2026): Spiel-Paket. SQL muss in Supabase ausgeführt werden** (`supabase/quiz.sql`, wiederholbar). Neue Spalte `quiz_rooms.game_event` und Funktion `quiz_game_rush` für „Goldrausch für alle“. Ohne das SQL läuft alles, nur der Goldrausch-Knopf meldet einen Fehler. Test und Screenshots: `node docs/tools/spiel-screenshots.js`.
 - **Neu (25.11.2026): Fragetyp Zahl. SQL muss in Supabase ausgeführt werden** (`supabase/quiz.sql`, wiederholbar). Neue Hilfsfunktionen `quiz_num_cands` und `quiz_num_ok`, `quiz_answer` bewertet Fragen mit `t: "num"`. Ohne das SQL würden Zahlenantworten auf dem Server meist als falsch gewertet. Datenformat: `{ "t": "num", "q": "…", "a": 1250.5, "d": 0.01, "dp": false, "unit": "€", "e": "…" }` (`d` = erlaubte Abweichung, `dp: true` = Abweichung in Prozent). Keine neuen personenbezogenen Daten.
 
 ![Rennen mit Rechenaufgaben am Beamer](img/18-zahl-lehrer-rennen.jpg)

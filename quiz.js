@@ -161,7 +161,7 @@
         const r = room(a.p_code); player(a.p_code, a.p_pid, a.p_token);
         const answers = db.answers.filter((x) => x.pid === a.p_pid).sort((x, y) => x.q - y.q)
           .map((x) => ({ q: x.q, ok: x.ok, given: x.given, a: solution(r.questions[x.q]), e: r.questions[x.q].e || null, bonus: !!x.bonus }));
-        return { status: r.status, title: r.title, questions: strip(r.questions), answers, count: db.players.filter((p) => p.code === a.p_code).length, tl: r.tl, left: left(r) };
+        return { status: r.status, title: r.title, questions: strip(r.questions), answers, count: db.players.filter((p) => p.code === a.p_code).length, tl: r.tl, left: left(r), ge: r.ge || 0 };
       }
       case "quiz_watch_state": {
         const r = room(a.p_code); player(a.p_code, a.p_pid, a.p_token);
@@ -184,6 +184,7 @@
         if (a.p_status === "open" && (!r.started || (r.tl != null && Date.now() > r.started + r.tl * 1000))) r.started = Date.now();
         save(); return null;
       }
+      case "quiz_game_rush": { const r = room(a.p_code, a.p_secret); if (r.status === "lobby") { r.ge = (r.ge || 0) + 1; save(); } return null; }
       case "quiz_set_time": { const r = room(a.p_code, a.p_secret); r.tl = Number(a.p_seconds) > 0 ? Math.min(7200, Number(a.p_seconds)) : null; save(); return null; }
       case "quiz_remove_player": room(a.p_code, a.p_secret); db.players = db.players.filter((p) => p.id !== a.p_pid); save(); return null;
       case "quiz_game_score": {
@@ -432,9 +433,11 @@
         <p class="sub"><b id="cnt">${state.count ?? 1}</b> <span id="cntl">${(state.count ?? 1) === 1 ? "Person" : "Personen"}</span> im Raum · ${total()} Fragen</p></div></div>
         <h3 class="section-head">Spiel zum Warten</h3>${window.QuizGame ? QuizGame.html() : ""}`);
       const stopGame = window.QuizGame ? QuizGame.mount(root, [...me.nick].reduce((a, c) => a + c.charCodeAt(0), 0), { onScore: (sc) => { rpc("quiz_game_score", { p_code: code, p_pid: me.pid, p_token: me.token, p_score: sc }).catch(() => {}); } }) : () => {};
+      let ge = state.ge ?? null;                       /* Goldrausch der Lehrkraft: nur auf Änderungen reagieren */
       every(2000, async () => {
         let s2;
         try { s2 = await rpc("quiz_player_state", { p_code: code, p_pid: me.pid, p_token: me.token }); } catch (e) { if (isGone(e)) gone(); return; }
+        if (s2.ge != null) { if (ge != null && s2.ge > ge && stopGame.rush) stopGame.rush(); ge = s2.ge; }
         if (s2.status === "lobby") { const ti = root.querySelector("#tlInfo"); if (ti) ti.innerHTML = s2.tl ? `⏱ Zeit für das ganze Quiz: <b>${fmtT(s2.tl)} Min</b>` : ""; const c = root.querySelector("#cnt"), l = root.querySelector("#cntl"); if (c) c.textContent = s2.count; if (l) l.textContent = s2.count === 1 ? "Person" : "Personen"; return; }
         clearTimer(); apply(s2); countdown();
       });
@@ -977,7 +980,7 @@ Eine Ware kostet 80 € netto. Wie hoch ist der Bruttopreis bei 19 % USt?;95,20;
   async function viewRoom(code) {
     const secret = store.get(`quiz.teacher.${code}`);
     if (!secret) { show(`<header class="top"><a class="tag-box" href="#/lehrer">← Neues Quiz</a></header><p class="msg">Dieser Raum wurde auf einem anderen Gerät angelegt. Öffne ihn dort, oder lege ein neues Quiz an.</p>`); return; }
-    let st = null, stAt = 0, timeUpSeen = false, hide = store.get("quiz.hideNames", false), view = store.get("quiz.view", "race"), detail = store.get("quiz.detail", false), sortBy = store.get("quiz.sort", "join"), beamer = false;
+    let st = null, stAt = 0, timeUpSeen = false, hide = store.get("quiz.hideNames", false), view = store.get("quiz.view", "race"), detail = store.get("quiz.detail", false), sortBy = store.get("quiz.sort", "join"), beamer = false, rushUntil = 0;
     const qrSvg = () => {
       if (typeof qrcode !== "function") return "";
       const q = qrcode(0, "M"); q.addData(joinUrl(code)); q.make(); return q.createSvgTag({ cellSize: 8, margin: 1, scalable: true });
@@ -1044,9 +1047,10 @@ Eine Ware kostet 80 € netto. Wie hoch ist der Bruttopreis bei 19 % USt?;95,20;
         ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="chip">${esc(hide ? `SuS ${p.i + 1}` : p.nick)}${beamer ? "" : `<button data-rn="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="Umbenennen" title="Umbenennen">✎</button><button data-rm="${esc(p.id)}" aria-label="Entfernen" title="Entfernen">×</button>`}</span>`).join("")}</div>` : `<p class="empty">Noch niemand im Raum. Zeige den Code oder den QR-Code.</p>`}
         ${board(ps)}
         <div class="row no-beamer" style="margin-top:16px"><button class="btn sm ${hide ? "on" : "ghost"}" id="bHide">Namen ${hide ? "zeigen" : "ausblenden"}</button>${musicBtn()}<button class="btn sm ghost" id="bBeam">Beamer-Ansicht</button><button class="btn sm ghost" id="bGame">Spiel ausprobieren</button><button class="btn sm ghost" id="bDel">Raum löschen</button></div>
-        <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button></div>
+        <div class="row no-beamer" style="margin-top:10px"><button class="btn sm ${st.bonus ? "on" : "ghost"} grow" id="bBonus">Aufholbonus: ${st.bonus ? "an" : "aus"}</button><button class="btn sm ghost grow" id="bRush" ${Date.now() < rushUntil ? "disabled" : ""}>${Date.now() < rushUntil ? "💰 Goldrausch läuft …" : "💰 Goldrausch für alle"}</button></div>
         <div class="row no-beamer timebox" style="margin-top:10px"><label for="tlSel" class="grow"><b>Quiz auf Zeit</b></label><select class="input" id="tlSel" aria-label="Zeitlimit">${(TL_OPTS.includes(st.tl || 0) ? TL_OPTS : [...TL_OPTS, st.tl].sort((a, b) => a - b)).map((v) => `<option value="${v}" ${v === (st.tl || 0) ? "selected" : ""}>${v ? `${Math.round(v / 60)} Minuten` : "Kein Zeitlimit"}</option>`).join("")}</select></div>
         <p class="hint no-beamer" style="margin-top:8px">Zeitlimit: Die Uhr startet mit „Quiz starten“ und läuft für alle gleich. Danach sind keine Antworten mehr möglich. Bei Gleichstand gewinnt, wer schneller war.</p>
+        <p class="hint no-beamer" style="margin-top:8px">Goldrausch: Im Warte-Spiel regnet es bei allen sieben Sekunden lang Münzen. Danach 30 Sekunden Pause.</p>
         <p class="hint no-beamer" style="margin-top:8px">Aufholbonus: Wer im letzten Drittel liegt (ab 4 Personen), bekommt für eine richtige Antwort doppelte Punkte und springt zwei Schritte.</p>
         <button class="btn pink block startbtn" id="bStart" style="margin-top:18px" ${ps.length ? "" : "disabled"}>Quiz starten (${ps.length})</button>` : `
         <div class="stats" style="margin-top:16px"><div><div class="v">${ps.length}</div><div class="k">Dabei</div></div><div><div class="v">${finished}</div><div class="k">Fertig</div></div><div><div class="v">${answered}<small>/${n * ps.length}</small></div><div class="k">Beantwortet</div></div><div><div class="v">${right}<small> · ${avg}%</small></div><div class="k">Richtig</div></div></div>
@@ -1078,6 +1082,7 @@ Eine Ware kostet 80 € netto. Wie hoch ist der Bruttopreis bei 19 % USt?;95,20;
       const $ = (id) => root.querySelector(id);
       if ($("#bView")) $("#bView").onclick = () => { view = view === "race" ? "tiles" : "race"; store.set("quiz.view", view); paint(); };
       if ($("#bBonus")) $("#bBonus").onclick = async () => { await rpc("quiz_set_bonus", { p_code: code, p_secret: secret, p_bonus: !st.bonus }); pull(); };
+      if ($("#bRush")) $("#bRush").onclick = async () => { rushUntil = Date.now() + 30000; paint(); setTimeout(() => { if (root.isConnected) paint(); }, 30100); try { await rpc("quiz_game_rush", { p_code: code, p_secret: secret }); } catch (er) { rushUntil = 0; alert(errText(er)); paint(); } };
       if ($("#bStart")) $("#bStart").onclick = async () => { $("#bStart").disabled = true; await rpc("quiz_set_status", { p_code: code, p_secret: secret, p_status: "open" }); pull(); };
       if ($("#bDetail")) $("#bDetail").onclick = () => { detail = !detail; store.set("quiz.detail", detail); paint(); };
       if ($("#bHide")) $("#bHide").onclick = () => { hide = !hide; store.set("quiz.hideNames", hide); paint(); };

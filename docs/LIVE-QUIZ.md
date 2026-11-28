@@ -78,6 +78,15 @@ Im Warteraum sehen Schüler/innen unter dem Wartetext ein kleines Pixel-Spiel (`
 
 **Spielregeln (Stand Gegner/Ebenen):** Tippen = springen, Halten = höher; je schneller das Pferd, desto kräftiger und weiter der Sprung (mit kurzem Schweben am höchsten Punkt). Münzen werden vom Pferd leicht angezogen (Magnet) und liegen in Sprungbögen. Gegner: Pilz/Roboter/Käfer/Alien und Drohnen/Bienen/UFOs kann man **von oben anspringen** (+25 Punkte, Absprung nach oben), Stachelwesen (Igel, Stachelkugel, Mine, Asteroid) nicht. Abgründe muss man überspringen (sonst −1 Herz, danach liegt ein Brett drüber). Plattformen sind einseitig (von unten durchlaufbar, von oben darauf landen) und haben zwei Ebenen. Alles nur in `game.js`, keine Datenbank, keine Töne.
 
+**Spiel-Paket (28.11.2026): Level, neue Gegner, Rutschen, Power-ups, Goldrausch.**
+- **Steuerung:** rechts tippen/halten = springen, **links tippen (linkes Drittel) = rutschen**, in der Luft = schnell nach unten. Nach unten wischen, Pfeil runter oder S geht auch. Die ersten Sekunden zeigt das Bild die beiden Zonen.
+- **Level:** Nach 26 Sekunden kommt eine **Zielflagge**. Wer durchreitet, kommt ins nächste Level und die nächste Welt (+50 Punkte, +1 Herz). Oben links: Level, Tempo und ein Balken bis zur Flagge. Neue Hindernisse kommen mit dem Level.
+- **Neu:** hängender Balken (nur drunter durchrutschen), Sprungfeder (sehr hoher Sprung), bewegte Plattformen (ab L2), rollendes Fass (ab L2, nur drüberspringen), Frosch und Sturzvogel (ab L3, beide kann man anspringen).
+- **Power-ups** in Blasen: Magnet (9 s, zieht Münzen an), Schild (fängt einen Treffer oder Absturz ab), Stern (6 s unverwundbar, Gegner fliegen weg), Doppelsprung (12 s). Aktive Power-ups oben rechts mit Restzeit.
+- **Missionen:** drei zufällige Aufgaben pro Runde (z. B. „3× unter Balken rutschen“), jede +100. Der Fortschritt steht unter dem Spiel.
+- **Goldrausch:** 7 Sekunden Münzregen, zufällig etwa jede Minute. Die Lehrkraft kann ihn im Warteraum mit **„💰 Goldrausch für alle“** für alle Handys auslösen (danach 30 Sekunden Pause). Datenbank: Spalte `quiz_rooms.game_event` (Zähler), Funktion `quiz_game_rush(code, secret)` (nur im Warteraum), `quiz_player_state` liefert `ge`. Das Handy reagiert nur, wenn der Zähler steigt. Keine personenbezogenen Daten.
+- Test und Screenshots: `node docs/tools/spiel-screenshots.js` (prüft Rutschen, Balken, Feder, Zielflagge, Schild, Doppelsprung und den Goldrausch von der Lehrkraft zum Handy).
+
 **Beamer-Bestenliste:** Nach jeder Runde sendet das Handy nur den Punktestand (Zahl) an den Raum (`quiz_game_score`, nur im Warteraum, nur mit eigenem Token, höchstens 99999, es zählt der beste Wert). Die Lehrkraft sieht im Warteraum die Top 5 „Hürdenritt · Bestenliste“ (in der Beamer-Ansicht groß, mit „Namen ausblenden“ als SuS 1, 2 …). Datenbank: Spalte `quiz_players.game_best`, Funktion `quiz_game_score`, `quiz_teacher_state` liefert `gs` je Person. Keine neuen personenbezogenen Daten, der Spielstand verschwindet mit dem Raum (24 Stunden). Rekord und Pferdefarbe bleiben nur lokal. Die Pferde-Pixel kommen aus `race.js` (`QuizRace.pix`).
 
 
